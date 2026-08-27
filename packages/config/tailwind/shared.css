@@ -1,0 +1,6 @@
+/* Shared Tailwind v4 design tokens, imported from apps/web/src/app/globals.css.
+   Kept minimal for the Day 1-2 scaffold; shadcn/ui's `init` step adds its own
+   CSS variables into globals.css alongside this import. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
