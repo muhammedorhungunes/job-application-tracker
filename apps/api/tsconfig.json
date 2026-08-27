@@ -1,0 +1,5 @@
+{
+  "extends": "@job-tracker/config/tsconfig/nestjs.json",
+  "compilerOptions": {},
+  "include": ["src", "test"]
+}

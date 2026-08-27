@@ -1,0 +1,57 @@
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import type { Env } from "./env.schema";
+
+/**
+ * Typed wrapper around ConfigService so the rest of the app never calls
+ * `process.env` or untyped `ConfigService.get()` directly (CLAUDE.md rule).
+ */
+@Injectable()
+export class AppConfigService {
+  constructor(private readonly config: ConfigService<Env, true>) {}
+
+  get nodeEnv(): Env["NODE_ENV"] {
+    return this.config.get("NODE_ENV", { infer: true });
+  }
+
+  get isProduction(): boolean {
+    return this.nodeEnv === "production";
+  }
+
+  get port(): number {
+    return this.config.get("PORT", { infer: true });
+  }
+
+  get databaseUrl(): string {
+    return this.config.get("DATABASE_URL", { infer: true });
+  }
+
+  get jwtAccessSecret(): string {
+    return this.config.get("JWT_ACCESS_SECRET", { infer: true });
+  }
+
+  get jwtAccessTtl(): string {
+    return this.config.get("JWT_ACCESS_TTL", { infer: true });
+  }
+
+  get jwtRefreshSecret(): string {
+    return this.config.get("JWT_REFRESH_SECRET", { infer: true });
+  }
+
+  get jwtRefreshTtl(): string {
+    return this.config.get("JWT_REFRESH_TTL", { infer: true });
+  }
+
+  get webOrigin(): string {
+    return this.config.get("WEB_ORIGIN", { infer: true });
+  }
+
+  /** Cookie attributes differ between dev (same-site localhost) and prod
+   * (Vercel web ↔ Railway api are different registrable domains, so
+   * cross-site fetch with credentials needs SameSite=None; Secure). */
+  get authCookieOptions(): { sameSite: "lax" | "none"; secure: boolean } {
+    return this.isProduction
+      ? { sameSite: "none", secure: true }
+      : { sameSite: "lax", secure: false };
+  }
+}
