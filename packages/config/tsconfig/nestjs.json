@@ -7,7 +7,11 @@
     "target": "ES2023",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "outDir": "./dist",
+    // outDir intentionally NOT set here: a relative path in a shared base
+    // config resolves relative to *this* file's location, not the
+    // extending project's — every consumer must set its own outDir (see
+    // apps/api/tsconfig.build.json) or builds silently land under
+    // packages/config/tsconfig/dist instead of the app's own dist/.
     "declaration": true,
     "sourceMap": true,
     "incremental": true

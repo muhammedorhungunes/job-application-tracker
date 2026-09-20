@@ -14,3 +14,62 @@ export const ApplicationStatusValues = [
 ] as const;
 export const ApplicationStatusSchema = z.enum(ApplicationStatusValues);
 export type ApplicationStatus = z.infer<typeof ApplicationStatusSchema>;
+
+/** Minimal company info embedded in an application response — not the full Company record. */
+export const CompanySummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+export type CompanySummary = z.infer<typeof CompanySummarySchema>;
+
+/** Shape of an application as returned by the API. Dates are ISO strings over HTTP. */
+export const ApplicationSchema = z.object({
+  id: z.string(),
+  position: z.string(),
+  status: ApplicationStatusSchema,
+  source: z.string().nullable(),
+  url: z.string().nullable(),
+  appliedAt: z.string().datetime().nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  company: CompanySummarySchema,
+});
+export type Application = z.infer<typeof ApplicationSchema>;
+
+/**
+ * Input for creating an application. There's no company-picker endpoint yet,
+ * so the client sends a plain company name and the backend finds-or-creates
+ * the Company row by it (see ApplicationsService.getOrCreateCompany).
+ */
+export const CreateApplicationInputSchema = z.object({
+  position: z.string().trim().min(1).max(200),
+  companyName: z.string().trim().min(1).max(200),
+  status: ApplicationStatusSchema.optional(),
+  source: z.string().trim().min(1).max(200).optional(),
+  url: z.string().trim().url().optional(),
+  appliedAt: z.string().datetime().optional(),
+  notes: z.string().trim().min(1).max(5000).optional(),
+});
+export type CreateApplicationInput = z.infer<typeof CreateApplicationInputSchema>;
+
+/**
+ * Input for a partial update (PATCH). Every field is optional so the client
+ * only sends what changed. The `source`/`url`/`appliedAt`/`notes` fields are
+ * also `.nullable()` (unlike in create) so a client can explicitly clear a
+ * previously-set value by sending `null` — omitting a key leaves it
+ * untouched, which zod represents by the key being absent after parsing (see
+ * ApplicationsService.update, which checks `"field" in input`).
+ */
+export const UpdateApplicationInputSchema = z
+  .object({
+    position: z.string().trim().min(1).max(200).optional(),
+    companyName: z.string().trim().min(1).max(200).optional(),
+    status: ApplicationStatusSchema.optional(),
+    source: z.string().trim().min(1).max(200).nullable().optional(),
+    url: z.string().trim().url().nullable().optional(),
+    appliedAt: z.string().datetime().nullable().optional(),
+    notes: z.string().trim().min(1).max(5000).nullable().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: "Provide at least one field to update" });
+export type UpdateApplicationInput = z.infer<typeof UpdateApplicationInputSchema>;

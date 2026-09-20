@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.json",
+  // outDir must live here, not in the shared @job-tracker/config/tsconfig/nestjs.json
+  // base — a relative outDir in a shared base resolves relative to that
+  // base file, not to this project (see the comment in nestjs.json).
+  "compilerOptions": { "outDir": "./dist" },
   "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
 }

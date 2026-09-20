@@ -13,6 +13,8 @@ import { RefreshTokenGuard } from "./guards/refresh-token.guard";
   imports: [JwtModule.register({})],
   controllers: [AuthController],
   providers: [AuthService, AuthRepository, AccessTokenGuard, RefreshTokenGuard],
-  exports: [AuthService],
+  // AccessTokenGuard is exported so other modules can protect their own
+  // routes without redefining auth logic (see applications/applications.module.ts).
+  exports: [AuthService, AccessTokenGuard],
 })
 export class AuthModule {}
