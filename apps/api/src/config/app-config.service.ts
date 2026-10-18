@@ -46,9 +46,10 @@ export class AppConfigService {
     return this.config.get("WEB_ORIGIN", { infer: true });
   }
 
-  /** Cookie attributes differ between dev (same-site localhost) and prod
-   * (Vercel web ↔ Railway api are different registrable domains, so
-   * cross-site fetch with credentials needs SameSite=None; Secure). */
+  /** Cookie attributes differ between dev (same-site localhost) and prod.
+   * The browser never receives these cookies directly — the web app's server
+   * re-issues them on its own origin (apps/web/src/lib/auth-cookies.ts) — so
+   * SameSite=None only matters for a client calling the API cross-site. */
   get authCookieOptions(): { sameSite: "lax" | "none"; secure: boolean } {
     return this.isProduction
       ? { sameSite: "none", secure: true }
