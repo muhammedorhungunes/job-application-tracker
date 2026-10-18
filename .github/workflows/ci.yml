@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: job_tracker
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # No .env file in CI — ConfigModule falls back to these process env vars.
+    # The secrets are throwaway test values, not real credentials.
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/job_tracker
+      JWT_ACCESS_SECRET: ci-access-secret-not-used-anywhere-real-0000
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-used-anywhere-real-000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version comes from package.json's "packageManager" field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # typecheck and unit tests need the generated @prisma/client types.
+      - run: pnpm --filter @job-tracker/api prisma:generate
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: Apply migrations
+        run: pnpm --filter @job-tracker/api exec prisma migrate deploy
+
+      - run: pnpm --filter @job-tracker/api test:e2e
+
+      - name: Build
+        run: pnpm build
