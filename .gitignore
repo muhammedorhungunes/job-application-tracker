@@ -13,3 +13,6 @@ coverage/
 
 *.tsbuildinfo
 .pnpm-store/
+
+# Local knowledge-graph output (graphify)
+graphify-out/
