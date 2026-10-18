@@ -18,7 +18,8 @@ Phase 1 is fully done and deployed.
   - Next.js: list page + detail page
 
 **Day 5**
-- Deploy: Vercel (web) + Railway (api + Postgres + Redis)
+- Deploy: Vercel (web) + Railway (api + Postgres + Redis) — see `docs/deploy.md`
+  - Redis deferred to Day 8-9: nothing uses it until the BullMQ AI jobs
 - GitHub Actions: lint + typecheck + test on push
 
 **Definition of done for week 1:** you can add your own application on a live
