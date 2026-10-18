@@ -22,6 +22,11 @@ export class ApplicationsController {
     return this.applicationsService.findAllForUser(user.sub);
   }
 
+  @Get(":id")
+  async findOne(@Param("id") id: string, @CurrentUser() user: AccessTokenPayload): Promise<Application> {
+    return this.applicationsService.findOneForUser(user.sub, id);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(

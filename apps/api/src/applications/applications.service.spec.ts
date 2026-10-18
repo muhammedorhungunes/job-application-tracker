@@ -98,6 +98,29 @@ describe("ApplicationsService", () => {
     });
   });
 
+  describe("findOneForUser", () => {
+    it("looks the application up scoped to the user and maps it into the API shape", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+
+      const result = await applicationsService.findOneForUser("user-1", "app-1");
+
+      expect(applicationsRepository.findByIdForUser).toHaveBeenCalledWith("app-1", "user-1");
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: "app-1",
+          appliedAt: "2026-09-01T00:00:00.000Z",
+          company: { id: "company-1", name: "Acme Inc" },
+        }),
+      );
+    });
+
+    it("throws NotFoundException when the application doesn't exist or isn't the user's", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(null);
+
+      await expect(applicationsService.findOneForUser("user-1", "missing")).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe("create", () => {
     const input = {
       position: "Backend Engineer",

@@ -12,6 +12,15 @@ export class ApplicationsService {
     return rows.map(this.toApplication);
   }
 
+  async findOneForUser(userId: string, applicationId: string): Promise<Application> {
+    const row = await this.applicationsRepository.findByIdForUser(applicationId, userId);
+    if (!row) {
+      // Same "doesn't exist" vs "not yours" ambiguity as update()/remove().
+      throw new NotFoundException("Application not found");
+    }
+    return this.toApplication(row);
+  }
+
   async create(userId: string, input: CreateApplicationInput): Promise<Application> {
     const company = await this.getOrCreateCompany(input.companyName);
     const row = await this.applicationsRepository.createApplication({
