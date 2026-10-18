@@ -12,13 +12,17 @@ export class ApiError extends Error {
 
 /**
  * The only place `fetch` is called (CLAUDE.md: no raw fetch in components).
- * `credentials: "include"` sends the httpOnly auth cookies set by the API.
+ * `credentials: "include"` matters only for browser calls; server-side calls
+ * attach the auth cookies explicitly via `lib/session.ts`.
  *
- * TODO (Day 3-4): when called from a server component, forward the
- * incoming request's cookies via `next/headers` — the browser won't attach
- * them for a server-to-server call the way it does for a client fetch.
+ * Also returns the response's Set-Cookie lines, which login/register/refresh
+ * need so the web app can re-issue the API's auth cookies on its own origin
+ * (see lib/auth-cookies.ts for why).
  */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetchWithCookies<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{ data: T; setCookies: string[] }> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
@@ -33,9 +37,15 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(res.status, body || res.statusText);
   }
 
+  const setCookies = res.headers.getSetCookie();
   if (res.status === 204) {
-    return undefined as T;
+    return { data: undefined as T, setCookies };
   }
 
-  return (await res.json()) as T;
+  return { data: (await res.json()) as T, setCookies };
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data } = await apiFetchWithCookies<T>(path, init);
+  return data;
 }

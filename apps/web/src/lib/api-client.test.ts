@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiFetch, ApiError } from "./api-client";
+import { apiFetch, apiFetchWithCookies, ApiError } from "./api-client";
 
 describe("apiFetch", () => {
   afterEach(() => {
@@ -37,5 +37,23 @@ describe("apiFetch", () => {
     const result = await apiFetch("/auth/logout", { method: "POST" });
 
     expect(result).toBeUndefined();
+  });
+
+  it("returns the Set-Cookie lines alongside the body", async () => {
+    const headers = new Headers();
+    headers.append("Set-Cookie", "access_token=abc; Max-Age=900; Path=/; HttpOnly");
+    headers.append("Set-Cookie", "refresh_token=def; Max-Age=2592000; Path=/auth; HttpOnly");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ id: "u1" }), { status: 200, headers })),
+    );
+
+    const result = await apiFetchWithCookies<{ id: string }>("/auth/login", { method: "POST" });
+
+    expect(result.data).toEqual({ id: "u1" });
+    expect(result.setCookies).toEqual([
+      "access_token=abc; Max-Age=900; Path=/; HttpOnly",
+      "refresh_token=def; Max-Age=2592000; Path=/auth; HttpOnly",
+    ]);
   });
 });
