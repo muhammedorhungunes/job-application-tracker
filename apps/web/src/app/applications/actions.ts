@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
-import { ApplicationSchema, type Application } from "@job-tracker/types";
+import { ApplicationSchema, ApplicationStatusSchema, type Application, type ApplicationStatus } from "@job-tracker/types";
 import { ApiError } from "@/lib/api-client";
 import { parseCreateApplicationForm, parseUpdateApplicationForm } from "@/lib/application-form";
 import { formStateFromZodError, type FormState } from "@/lib/form-state";
@@ -65,6 +65,30 @@ export async function updateApplication(id: string, _state: FormState, formData:
   revalidatePath("/applications");
   revalidatePath(applicationPath(id));
   return { message: "Saved" };
+}
+
+const StatusUpdateSchema = z.object({ id: z.string().min(1), status: ApplicationStatusSchema });
+
+/** Called directly from the Kanban board (not a form), so the arguments are re-validated here. */
+export async function updateApplicationStatus(id: string, status: ApplicationStatus): Promise<{ error?: string }> {
+  const parsed = StatusUpdateSchema.safeParse({ id, status });
+  if (!parsed.success) {
+    return { error: GENERIC_ERROR };
+  }
+
+  try {
+    await serverApiFetch(applicationPath(parsed.data.id), ApplicationSchema, {
+      method: "PATCH",
+      body: JSON.stringify({ status: parsed.data.status }),
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return { error: GENERIC_ERROR };
+  }
+
+  revalidatePath("/applications");
+  revalidatePath(applicationPath(parsed.data.id));
+  return {};
 }
 
 export async function deleteApplication(id: string): Promise<void> {

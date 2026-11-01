@@ -21,6 +21,9 @@ Phase 1 is fully done and deployed.
 - Deploy: Vercel (web) + Railway (api + Postgres + Redis) — see `docs/deploy.md`
   - Redis deferred to Day 8-9: nothing uses it until the BullMQ AI jobs
 - GitHub Actions: lint + typecheck + test on push
+- **Status (2026-11-01):** CI and the deploy runbook are merged; the deploy
+  itself is postponed because Railway paused new signups after its 2026-10-21
+  incident. Feature work continues locally until signups reopen.
 
 **Definition of done for week 1:** you can add your own application on a live
 URL. It doesn't need to look good — it needs to work.
@@ -58,5 +61,5 @@ See `CLAUDE.md` → *Scope discipline*:
 
 ## Open decisions (resolve when the relevant day arrives)
 
-- [ ] Drag & drop library for the Kanban board (Day 6-7)
+- [x] Drag & drop library for the Kanban board (Day 6-7) → `@dnd-kit/core`
 - [ ] Email provider for reminders (Day 10)
