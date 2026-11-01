@@ -16,7 +16,7 @@ export default function ApplicationsLayout({ children }: { children: ReactNode }
           </Button>
         </form>
       </header>
-      <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">{children}</main>
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">{children}</main>
     </div>
   );
 }

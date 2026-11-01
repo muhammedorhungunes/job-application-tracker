@@ -21,7 +21,8 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
   const application = await getApplication(id);
 
   return (
-    <>
+    // The layout is wide for the Kanban board; forms read better narrower.
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{application.position}</h1>
@@ -31,6 +32,6 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         <DeleteApplicationButton action={deleteApplication.bind(null, id)} />
       </div>
       <ApplicationForm action={updateApplication.bind(null, id)} application={application} submitLabel="Save changes" />
-    </>
+    </div>
   );
 }
