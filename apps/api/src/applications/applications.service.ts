@@ -32,6 +32,7 @@ export class ApplicationsService {
       url: input.url ?? null,
       appliedAt: input.appliedAt ? new Date(input.appliedAt) : null,
       notes: input.notes ?? null,
+      techStack: input.techStack ?? [],
     });
     return this.toApplication(row);
   }
@@ -54,6 +55,7 @@ export class ApplicationsService {
     if ("source" in input) data.source = input.source;
     if ("url" in input) data.url = input.url;
     if ("notes" in input) data.notes = input.notes;
+    if ("techStack" in input) data.techStack = input.techStack;
     if ("appliedAt" in input) data.appliedAt = input.appliedAt ? new Date(input.appliedAt) : null;
     if ("companyName" in input && input.companyName) {
       const company = await this.getOrCreateCompany(input.companyName);
@@ -104,6 +106,7 @@ export class ApplicationsService {
       url: row.url,
       appliedAt: row.appliedAt?.toISOString() ?? null,
       notes: row.notes,
+      techStack: row.techStack,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       company: { id: row.company.id, name: row.company.name },
