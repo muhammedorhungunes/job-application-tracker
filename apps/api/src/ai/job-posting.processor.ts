@@ -1,6 +1,7 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { Logger } from "@nestjs/common";
-import type { Job } from "bullmq";
+import { UnrecoverableError, type Job } from "bullmq";
 import { AiService } from "./ai.service";
 import { JOB_POSTING_QUEUE, PARSE_FAILED_MESSAGE, type ExtractJobPostingJobData } from "./ai.constants";
 import { JobPostingParsesRepository } from "./job-posting-parses.repository";
@@ -34,10 +35,24 @@ export class JobPostingProcessor extends WorkerHost {
       this.logger.warn(
         `JobPostingParse ${parseId} attempt ${job.attemptsMade + 1} failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-      if (isLastAttempt) {
+      const retryable = isRetryable(error);
+      if (isLastAttempt || !retryable) {
         await this.repository.markFailed(parseId, PARSE_FAILED_MESSAGE);
       }
-      throw error;
+      // UnrecoverableError tells BullMQ to skip the remaining attempts.
+      throw retryable ? error : new UnrecoverableError(error instanceof Error ? error.message : String(error));
     }
   }
+}
+
+/**
+ * A 4xx from the API (bad key, invalid request, ...) fails the same way on
+ * every attempt, so retrying only costs time. 408/409/429 are the exceptions.
+ * Unusable model output and 5xx/network errors are worth another try.
+ */
+function isRetryable(error: unknown): boolean {
+  if (error instanceof Anthropic.APIError && typeof error.status === "number") {
+    return error.status >= 500 || [408, 409, 429].includes(error.status);
+  }
+  return true;
 }

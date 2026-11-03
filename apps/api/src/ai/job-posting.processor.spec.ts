@@ -1,6 +1,7 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { Test } from "@nestjs/testing";
 import type { JobPostingParse } from "@prisma/client";
-import type { Job } from "bullmq";
+import { UnrecoverableError, type Job } from "bullmq";
 import { PARSE_FAILED_MESSAGE, type ExtractJobPostingJobData } from "./ai.constants";
 import { AiService } from "./ai.service";
 import { JobPostingParsesRepository } from "./job-posting-parses.repository";
@@ -69,6 +70,26 @@ describe("JobPostingProcessor", () => {
 
     await expect(processor.process(fakeJob(2))).rejects.toThrow("bad output");
     expect(repository.markFailed).toHaveBeenCalledWith("parse-1", PARSE_FAILED_MESSAGE);
+  });
+
+  it("fails immediately without retrying on a non-retryable API error", async () => {
+    repository.findById.mockResolvedValue(row);
+    aiService.extractJobPosting.mockRejectedValue(
+      new Anthropic.AuthenticationError(401, undefined, "invalid x-api-key", new Headers()),
+    );
+
+    await expect(processor.process(fakeJob(0))).rejects.toThrow(UnrecoverableError);
+    expect(repository.markFailed).toHaveBeenCalledWith("parse-1", PARSE_FAILED_MESSAGE);
+  });
+
+  it("keeps retrying on a rate limit", async () => {
+    repository.findById.mockResolvedValue(row);
+    aiService.extractJobPosting.mockRejectedValue(
+      new Anthropic.RateLimitError(429, undefined, "rate limited", new Headers()),
+    );
+
+    await expect(processor.process(fakeJob(0))).rejects.toBeInstanceOf(Anthropic.RateLimitError);
+    expect(repository.markFailed).not.toHaveBeenCalled();
   });
 
   it("skips quietly when the parse row no longer exists", async () => {
