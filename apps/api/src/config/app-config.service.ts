@@ -46,6 +46,18 @@ export class AppConfigService {
     return this.config.get("WEB_ORIGIN", { infer: true });
   }
 
+  get redisUrl(): string {
+    return this.config.get("REDIS_URL", { infer: true });
+  }
+
+  get anthropicApiKey(): string {
+    return this.config.get("ANTHROPIC_API_KEY", { infer: true });
+  }
+
+  get anthropicModel(): string {
+    return this.config.get("ANTHROPIC_MODEL", { infer: true });
+  }
+
   /** Cookie attributes differ between dev (same-site localhost) and prod.
    * The browser never receives these cookies directly — the web app's server
    * re-issues them on its own origin (apps/web/src/lib/auth-cookies.ts) — so

@@ -22,6 +22,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     # No .env file in CI — ConfigModule falls back to these process env vars.
     # The secrets are throwaway test values, not real credentials.
@@ -30,6 +39,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/job_tracker
       JWT_ACCESS_SECRET: ci-access-secret-not-used-anywhere-real-0000
       JWT_REFRESH_SECRET: ci-refresh-secret-not-used-anywhere-real-000
+      REDIS_URL: redis://localhost:6379
+      # e2e tests mock the AI client, so this key is never sent anywhere.
+      ANTHROPIC_API_KEY: ci-not-a-real-key
 
     steps:
       - uses: actions/checkout@v4
