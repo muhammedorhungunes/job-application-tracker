@@ -1,18 +1,17 @@
 # Deploy
 
-- **API + Postgres:** Railway, built from this repo via the GitHub integration.
+- **API + Postgres + Redis:** Railway, built from this repo via the GitHub integration.
 - **Web:** Vercel, built from this repo via the GitHub integration.
 - Both redeploy automatically on every push to `main`. CI (`.github/workflows/ci.yml`)
   runs on the same push but does not gate the deploy — check it's green before pushing.
 
-Redis is not provisioned yet; it arrives with the BullMQ work on Day 8-9.
-
 The two sides need each other's URL, so do the steps in this order.
 
-## 1. Railway — API + Postgres
+## 1. Railway — API + Postgres + Redis
 
 1. **New Project → Deploy from GitHub repo** → pick this repo.
-2. In the project: **+ Create → Database → PostgreSQL**.
+2. In the project: **+ Create → Database → PostgreSQL**, then again **+ Create → Database → Redis**
+   (the BullMQ queue for AI job-posting parsing; the API worker runs in the same service).
 3. API service → **Settings**:
 
    | Setting | Value |
@@ -37,8 +36,11 @@ The two sides need each other's URL, so do the steps in this order.
    | `JWT_ACCESS_SECRET` | output of `openssl rand -base64 48` |
    | `JWT_REFRESH_SECRET` | a **different** `openssl rand -base64 48` |
    | `WEB_ORIGIN` | `https://example.com` for now — fixed in step 3 |
+   | `REDIS_URL` | `${{Redis.REDIS_URL}}` (reference variable) |
+   | `ANTHROPIC_API_KEY` | an Anthropic API key (backend only — never set it on Vercel) |
 
    `PORT` is injected by Railway; don't set it. `JWT_*_TTL` default to 15m / 30d.
+   `ANTHROPIC_MODEL` defaults to `claude-opus-5-5`.
 
 5. API service → **Settings → Networking → Generate Domain**.
 6. Check `https://<api-domain>/health` returns `{"status":"ok",...}`.
