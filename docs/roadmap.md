@@ -39,6 +39,11 @@ URL. It doesn't need to look good — it needs to work.
 - AI module: paste a job posting, Claude API extracts company / position /
   tech stack, validated with zod, runs as a BullMQ job
 - Prompts live under `ai/prompts/`, not embedded in code
+- **Status (2026-11-04):** done on `feat/ai-job-parser`. `POST /ai/job-postings`
+  returns 202 and queues a BullMQ job. The web app polls `GET /ai/job-postings/:id`
+  and pre-fills the new-application form; nothing is saved without the user.
+  Adds `Application.techStack`. Libraries: `@anthropic-ai/sdk`, `bullmq` 5.x
+  (bundles ioredis; 6.x doesn't), `@nestjs/bullmq` 11.x (12.x is ESM-only).
 
 **Day 10**
 - Cron + email reminders ("no update on application X for 7 days")

@@ -13,6 +13,7 @@ function application(overrides: Partial<Application> & Pick<Application, "id" | 
     url: null,
     appliedAt: null,
     notes: null,
+    techStack: [],
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-01T00:00:00.000Z",
     company: { id: "company-1", name: "Acme Inc" },

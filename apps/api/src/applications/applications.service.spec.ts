@@ -18,6 +18,7 @@ describe("ApplicationsService", () => {
     url: "https://example.com/job/1",
     appliedAt: new Date("2026-09-01T00:00:00.000Z"),
     notes: null,
+    techStack: ["TypeScript", "NestJS"],
     createdAt: new Date("2026-09-01T00:00:00.000Z"),
     updatedAt: new Date("2026-09-02T00:00:00.000Z"),
     deletedAt: null,
@@ -82,6 +83,7 @@ describe("ApplicationsService", () => {
           url: "https://example.com/job/1",
           appliedAt: "2026-09-01T00:00:00.000Z",
           notes: null,
+          techStack: ["TypeScript", "NestJS"],
           createdAt: "2026-09-01T00:00:00.000Z",
           updatedAt: "2026-09-02T00:00:00.000Z",
           company: { id: "company-1", name: "Acme Inc" },
@@ -195,7 +197,19 @@ describe("ApplicationsService", () => {
           url: null,
           appliedAt: null,
           notes: null,
+          techStack: [],
         }),
+      );
+    });
+
+    it("passes a provided techStack through to the repository", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.create("user-1", { ...input, techStack: ["TypeScript", "NestJS"] });
+
+      expect(applicationsRepository.createApplication).toHaveBeenCalledWith(
+        expect.objectContaining({ techStack: ["TypeScript", "NestJS"] }),
       );
     });
 
@@ -241,6 +255,7 @@ describe("ApplicationsService", () => {
         url: "https://example.com/job/1",
         appliedAt: "2026-09-01T00:00:00.000Z",
         notes: null,
+        techStack: ["TypeScript", "NestJS"],
         createdAt: "2026-09-01T00:00:00.000Z",
         updatedAt: "2026-09-02T00:00:00.000Z",
         company: { id: "company-1", name: "Acme Inc" },
@@ -283,6 +298,16 @@ describe("ApplicationsService", () => {
       await applicationsService.update("user-1", "app-1", { notes: null });
 
       expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", { notes: null });
+    });
+
+    it("replaces techStack when it is sent", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.updateApplication.mockResolvedValue({ ...fakeRow, techStack: ["Go"] });
+
+      const result = await applicationsService.update("user-1", "app-1", { techStack: ["Go"] });
+
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", { techStack: ["Go"] });
+      expect(result.techStack).toEqual(["Go"]);
     });
 
     it("converts a provided appliedAt string into a Date, and an explicit null into null", async () => {

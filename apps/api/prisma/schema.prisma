@@ -19,6 +19,13 @@ enum ApplicationStatus {
   // packages/types/src/application.ts by hand.
 }
 
+enum JobPostingParseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  // Mirrored by hand in packages/types/src/ai.ts, same as ApplicationStatus.
+}
+
 enum ActivityType {
   STATUS_CHANGE
   NOTE
@@ -35,8 +42,9 @@ model User {
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
 
-  applications  Application[]
-  refreshTokens RefreshToken[]
+  applications     Application[]
+  refreshTokens    RefreshToken[]
+  jobPostingParses JobPostingParse[]
 
   @@index([deletedAt])
 }
@@ -83,6 +91,7 @@ model Application {
   url       String?
   appliedAt DateTime?
   notes     String?
+  techStack String[]          @default([])
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
   deletedAt DateTime?
@@ -107,4 +116,26 @@ model Activity {
   updatedAt     DateTime     @updatedAt
 
   @@index([applicationId])
+}
+
+// One "paste a posting, let Claude extract it" request. Processed by a BullMQ
+// job; the web app polls it by id. Token counts are kept per row for cost
+// tracking alongside the log line written on every call.
+model JobPostingParse {
+  id           String                @id @default(cuid())
+  userId       String
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rawText      String
+  status       JobPostingParseStatus @default(PENDING)
+  result       Json?
+  errorMessage String?
+  model        String?
+  inputTokens  Int?
+  outputTokens Int?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  deletedAt    DateTime?
+
+  @@index([userId])
+  @@index([deletedAt])
 }

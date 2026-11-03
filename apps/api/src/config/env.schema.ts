@@ -9,6 +9,9 @@ export const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_REFRESH_TTL: z.string().default("30d"),
   WEB_ORIGIN: z.string().url().default("http://localhost:3000"),
+  REDIS_URL: z.string().url(),
+  ANTHROPIC_API_KEY: z.string().min(1),
+  ANTHROPIC_MODEL: z.string().min(1).default("claude-opus-5-5"),
 });
 export type Env = z.infer<typeof envSchema>;
 

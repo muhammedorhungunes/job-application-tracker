@@ -55,11 +55,21 @@ describe("Applications (e2e)", () => {
     const createRes = await request(server)
       .post("/applications")
       .set("Cookie", [ownerCookie])
-      .send({ position: "Backend Engineer", companyName: `E2E Co ${randomUUID()}`, url: "https://example.com/job" })
+      .send({
+        position: "Backend Engineer",
+        companyName: `E2E Co ${randomUUID()}`,
+        url: "https://example.com/job",
+        techStack: ["TypeScript"],
+      })
       .expect(201);
     const id: string = createRes.body.id;
     expect(createRes.body).toEqual(
-      expect.objectContaining({ position: "Backend Engineer", status: "APPLIED", url: "https://example.com/job" }),
+      expect.objectContaining({
+        position: "Backend Engineer",
+        status: "APPLIED",
+        url: "https://example.com/job",
+        techStack: ["TypeScript"],
+      }),
     );
 
     const listRes = await request(server).get("/applications").set("Cookie", [ownerCookie]).expect(200);

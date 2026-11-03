@@ -31,11 +31,14 @@ export const ApplicationSchema = z.object({
   url: z.string().nullable(),
   appliedAt: z.string().datetime().nullable(),
   notes: z.string().nullable(),
+  techStack: z.array(z.string()),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   company: CompanySummarySchema,
 });
 export type Application = z.infer<typeof ApplicationSchema>;
+
+export const TechStackSchema = z.array(z.string().trim().min(1).max(50)).max(30);
 
 /**
  * Input for creating an application. There's no company-picker endpoint yet,
@@ -50,6 +53,7 @@ export const CreateApplicationInputSchema = z.object({
   url: z.string().trim().url().optional(),
   appliedAt: z.string().datetime().optional(),
   notes: z.string().trim().min(1).max(5000).optional(),
+  techStack: TechStackSchema.optional(),
 });
 export type CreateApplicationInput = z.infer<typeof CreateApplicationInputSchema>;
 
@@ -70,6 +74,8 @@ export const UpdateApplicationInputSchema = z
     url: z.string().trim().url().nullable().optional(),
     appliedAt: z.string().datetime().nullable().optional(),
     notes: z.string().trim().min(1).max(5000).nullable().optional(),
+    // Not nullable: an empty array already means "no tech stack".
+    techStack: TechStackSchema.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: "Provide at least one field to update" });
 export type UpdateApplicationInput = z.infer<typeof UpdateApplicationInputSchema>;

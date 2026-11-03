@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { z } from "zod";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { AUTH_COOKIE_NAMES, authCookieOptions, buildAuthCookieHeader, parseAuthSetCookies } from "@/lib/auth-cookies";
 
@@ -12,11 +11,13 @@ import { AUTH_COOKIE_NAMES, authCookieOptions, buildAuthCookieHeader, parseAuthS
  * `schema`. A 401 means the session is gone (middleware already tried a
  * refresh), so the user is sent to /login.
  */
-export async function serverApiFetch<S extends z.ZodTypeAny>(
+// Typed structurally rather than as a zod v3 ZodType so the zod/v4 schemas
+// in packages/types/src/ai.ts work here too; both versions expose parse().
+export async function serverApiFetch<T>(
   path: string,
-  schema: S,
+  schema: { parse: (data: unknown) => T },
   init?: RequestInit,
-): Promise<z.infer<S>> {
+): Promise<T> {
   const store = await cookies();
   const cookieHeader = buildAuthCookieHeader((name) => store.get(name)?.value);
 
