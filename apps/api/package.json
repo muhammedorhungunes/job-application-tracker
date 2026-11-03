@@ -9,7 +9,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate"
@@ -25,7 +25,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@prisma/client": "^6.2.1",
     "argon2": "^0.41.1",
-    "bullmq": "^6.5.4",
+    "bullmq": "^5.81.5",
     "cookie-parser": "^1.4.7",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
