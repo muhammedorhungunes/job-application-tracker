@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Application } from "@job-tracker/types";
-import { isoToDateInput, parseCreateApplicationForm, parseUpdateApplicationForm } from "./application-form";
+import {
+  formatTechStack,
+  isoToDateInput,
+  parseCreateApplicationForm,
+  parseTechStack,
+  parseUpdateApplicationForm,
+} from "./application-form";
 
 function formData(values: Record<string, string>): FormData {
   const data = new FormData();
@@ -16,6 +22,7 @@ const current: Application = {
   url: "https://example.com/job",
   appliedAt: "2026-09-01T14:30:00.000Z",
   notes: null,
+  techStack: ["TypeScript"],
   createdAt: "2026-09-01T14:30:00.000Z",
   updatedAt: "2026-09-01T14:30:00.000Z",
   company: { id: "company-1", name: "Acme Inc" },
@@ -29,6 +36,7 @@ const unchangedForm = {
   url: "https://example.com/job",
   appliedAt: "2026-09-01",
   notes: "",
+  techStack: "TypeScript",
 };
 
 describe("parseCreateApplicationForm", () => {
@@ -48,6 +56,15 @@ describe("parseCreateApplicationForm", () => {
     );
     expect(result.data?.source).toBeUndefined();
     expect(result.data?.url).toBeUndefined();
+    expect(result.data?.techStack).toBeUndefined();
+  });
+
+  it("splits the tech stack input into a list", () => {
+    const result = parseCreateApplicationForm(
+      formData({ position: "Dev", companyName: "Acme", techStack: "TypeScript, PostgreSQL" }),
+    );
+
+    expect(result.data?.techStack).toEqual(["TypeScript", "PostgreSQL"]);
   });
 
   it("reports missing required fields", () => {
@@ -85,6 +102,18 @@ describe("parseUpdateApplicationForm", () => {
     expect(result.data).toEqual({ appliedAt: "2026-09-05T00:00:00.000Z" });
   });
 
+  it("sends the new tech stack when it changed", () => {
+    const result = parseUpdateApplicationForm(formData({ ...unchangedForm, techStack: "TypeScript, Go" }), current);
+
+    expect(result.data).toEqual({ techStack: ["TypeScript", "Go"] });
+  });
+
+  it("sends an empty tech stack when the input is cleared", () => {
+    const result = parseUpdateApplicationForm(formData({ ...unchangedForm, techStack: "" }), current);
+
+    expect(result.data).toEqual({ techStack: [] });
+  });
+
   it("fails when nothing changed", () => {
     const result = parseUpdateApplicationForm(formData(unchangedForm), current);
 
@@ -97,5 +126,15 @@ describe("isoToDateInput", () => {
   it("returns the UTC calendar date or an empty string", () => {
     expect(isoToDateInput("2026-09-01T14:30:00.000Z")).toBe("2026-09-01");
     expect(isoToDateInput(null)).toBe("");
+  });
+});
+
+describe("parseTechStack", () => {
+  it("trims items and drops blanks and case-insensitive duplicates", () => {
+    expect(parseTechStack(" TypeScript ,, typescript, AWS ,")).toEqual(["TypeScript", "AWS"]);
+  });
+
+  it("round-trips with formatTechStack", () => {
+    expect(parseTechStack(formatTechStack(["Go", "Redis"]))).toEqual(["Go", "Redis"]);
   });
 });
