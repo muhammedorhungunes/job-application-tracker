@@ -97,6 +97,7 @@ model Application {
   deletedAt DateTime?
 
   activities Activity[]
+  reminders  ApplicationReminder[]
 
   @@index([userId])
   @@index([companyId])
@@ -116,6 +117,19 @@ model Activity {
   updatedAt     DateTime     @updatedAt
 
   @@index([applicationId])
+}
+
+// One row per application included in a sent reminder digest. Kept apart
+// from Application because writing to it would bump Application.updatedAt
+// (@updatedAt), which is exactly the "last touched" signal reminders key off.
+// A pure send log like Activity, so no deletedAt.
+model ApplicationReminder {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  sentAt        DateTime    @default(now())
+
+  @@index([applicationId, sentAt])
 }
 
 // One "paste a posting, let Claude extract it" request. Processed by a BullMQ
