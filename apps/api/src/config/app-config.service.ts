@@ -58,6 +58,26 @@ export class AppConfigService {
     return this.config.get("ANTHROPIC_MODEL", { infer: true });
   }
 
+  get resendApiKey(): string | undefined {
+    return this.config.get("RESEND_API_KEY", { infer: true });
+  }
+
+  get emailFrom(): string {
+    return this.config.get("EMAIL_FROM", { infer: true });
+  }
+
+  get reminderCron(): string {
+    return this.config.get("REMINDER_CRON", { infer: true });
+  }
+
+  get reminderTz(): string {
+    return this.config.get("REMINDER_TZ", { infer: true });
+  }
+
+  get reminderStaleDays(): number {
+    return this.config.get("REMINDER_STALE_DAYS", { infer: true });
+  }
+
   /** Cookie attributes differ between dev (same-site localhost) and prod.
    * The browser never receives these cookies directly — the web app's server
    * re-issues them on its own origin (apps/web/src/lib/auth-cookies.ts) — so

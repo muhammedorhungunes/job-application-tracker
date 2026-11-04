@@ -38,9 +38,19 @@ The two sides need each other's URL, so do the steps in this order.
    | `WEB_ORIGIN` | `https://example.com` for now — fixed in step 3 |
    | `REDIS_URL` | `${{Redis.REDIS_URL}}` (reference variable) |
    | `ANTHROPIC_API_KEY` | an Anthropic API key (backend only — never set it on Vercel) |
+   | `RESEND_API_KEY` | a Resend API key — **required** in production (the API refuses to boot without it) |
+   | `EMAIL_FROM` | e.g. `Job Tracker <reminders@your-domain>` — must use a domain verified in Resend |
 
    `PORT` is injected by Railway; don't set it. `JWT_*_TTL` default to 15m / 30d.
    `ANTHROPIC_MODEL` defaults to `claude-opus-5-5`.
+   `REMINDER_CRON` / `REMINDER_TZ` / `REMINDER_STALE_DAYS` default to
+   `0 9 * * *` / `Europe/Istanbul` / `7` (daily reminder digest at 09:00 Istanbul).
+
+   Resend's docs say a verified domain is required to send ("You must add and
+   verify at least one domain to send emails with Resend"), so verify one under
+   **Resend → Domains** before setting `EMAIL_FROM`. The default
+   `onboarding@resend.dev` sender is for local testing only; exactly which
+   recipients it can reach isn't confirmed yet.
 
 5. API service → **Settings → Networking → Generate Domain**.
 6. Check `https://<api-domain>/health` returns `{"status":"ok",...}`.

@@ -6,6 +6,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { ApplicationsModule } from "./applications/applications.module";
 import { AiModule } from "./ai/ai.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 
@@ -20,6 +21,7 @@ import { AppService } from "./app.service";
     AuthModule,
     ApplicationsModule,
     AiModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

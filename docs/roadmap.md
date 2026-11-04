@@ -48,6 +48,15 @@ URL. It doesn't need to look good — it needs to work.
 **Day 10**
 - Cron + email reminders ("no update on application X for 7 days")
 - Needs an email provider — decide before this day (candidate: Resend)
+- **Status (2026-11-05):** done on `feat/email-reminders`. A BullMQ job
+  scheduler runs a scan daily at 09:00 Europe/Istanbul (`REMINDER_CRON` /
+  `REMINDER_TZ`) and queues one digest email per user listing `APPLIED` /
+  `INTERVIEWING` applications whose `updatedAt` is 7+ days old
+  (`REMINDER_STALE_DAYS`). Sends go through `ApplicationReminder` so an
+  application is reminded once per stretch of silence, until it's updated
+  again. Resend is called over plain `fetch` (no SDK), with an idempotency key
+  per user per day; without `RESEND_API_KEY` (dev/test) emails are logged.
+  No new libraries.
 
 **Day 11-12**
 - Tests (unit for service methods, e2e for auth + critical endpoints)
@@ -67,4 +76,4 @@ See `CLAUDE.md` → *Scope discipline*:
 ## Open decisions (resolve when the relevant day arrives)
 
 - [x] Drag & drop library for the Kanban board (Day 6-7) → `@dnd-kit/core`
-- [ ] Email provider for reminders (Day 10)
+- [x] Email provider for reminders (Day 10) → Resend, via its REST API (no SDK)
