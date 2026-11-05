@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { logout } from "../(auth)/actions";
 
 export default function ApplicationsLayout({ children }: { children: ReactNode }) {
@@ -10,11 +10,16 @@ export default function ApplicationsLayout({ children }: { children: ReactNode }
         <Link href="/applications" prefetch={false} className="font-semibold">
           Job Application Tracker
         </Link>
-        <form action={logout}>
-          <Button type="submit" variant="ghost" size="sm">
-            Log out
-          </Button>
-        </form>
+        <nav className="flex items-center gap-2">
+          <Link href="/applications/stats" prefetch={false} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            Stats
+          </Link>
+          <form action={logout}>
+            <Button type="submit" variant="ghost" size="sm">
+              Log out
+            </Button>
+          </form>
+        </nav>
       </header>
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">{children}</main>
     </div>

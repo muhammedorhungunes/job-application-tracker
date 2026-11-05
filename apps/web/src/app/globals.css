@@ -9,6 +9,7 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-chart-1: var(--chart-1);
 }
 
 :root {
@@ -19,6 +20,9 @@
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --border: oklch(0.922 0 0);
+  /* Single-series chart color; checked with the dataviz palette validator
+     (lightness band, chroma, >= 3:1 against this surface). */
+  --chart-1: #2a78d6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +34,8 @@
     --muted: oklch(0.269 0 0);
     --muted-foreground: oklch(0.708 0 0);
     --border: oklch(1 0 0 / 12%);
+    /* Its own dark step, validated against the dark surface. */
+    --chart-1: #3987e5;
   }
 }
 
