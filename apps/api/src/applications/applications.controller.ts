@@ -3,6 +3,7 @@ import {
   CreateApplicationInputSchema,
   UpdateApplicationInputSchema,
   type Application,
+  type ApplicationStats,
   type CreateApplicationInput,
   type UpdateApplicationInput,
 } from "@job-tracker/types";
@@ -20,6 +21,12 @@ export class ApplicationsController {
   @Get()
   async findAll(@CurrentUser() user: AccessTokenPayload): Promise<Application[]> {
     return this.applicationsService.findAllForUser(user.sub);
+  }
+
+  // Declared before @Get(":id") so "stats" isn't captured as an id.
+  @Get("stats")
+  async stats(@CurrentUser() user: AccessTokenPayload): Promise<ApplicationStats> {
+    return this.applicationsService.getStatsForUser(user.sub);
   }
 
   @Get(":id")

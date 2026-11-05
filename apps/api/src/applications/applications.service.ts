@@ -1,11 +1,21 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import type { Company, Prisma } from "@prisma/client";
-import type { Application, CreateApplicationInput, UpdateApplicationInput } from "@job-tracker/types";
+import type { Application, ApplicationStats, CreateApplicationInput, UpdateApplicationInput } from "@job-tracker/types";
+import { AppConfigService } from "../config/app-config.service";
+import { computeApplicationStats } from "./application-stats";
 import { ApplicationsRepository, type ApplicationWithCompany } from "./applications.repository";
 
 @Injectable()
 export class ApplicationsService {
-  constructor(private readonly applicationsRepository: ApplicationsRepository) {}
+  constructor(
+    private readonly applicationsRepository: ApplicationsRepository,
+    private readonly config: AppConfigService,
+  ) {}
+
+  async getStatsForUser(userId: string, now: Date = new Date()): Promise<ApplicationStats> {
+    const rows = await this.applicationsRepository.findStatsRowsByUserId(userId);
+    return computeApplicationStats(rows, { now, staleDays: this.config.reminderStaleDays });
+  }
 
   async findAllForUser(userId: string): Promise<Application[]> {
     const rows = await this.applicationsRepository.findManyByUserId(userId);

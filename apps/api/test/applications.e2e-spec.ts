@@ -3,6 +3,7 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import request from "supertest";
+import { ApplicationStatsSchema } from "@job-tracker/types";
 import { AppModule } from "../src/app.module";
 import { pickCookie } from "./helpers";
 
@@ -111,5 +112,45 @@ describe("Applications (e2e)", () => {
 
     const otherList = await request(server).get("/applications").set("Cookie", [otherUserCookie]).expect(200);
     expect(otherList.body).toEqual([]);
+  });
+
+  describe("GET /applications/stats", () => {
+    it("rejects requests without an access token", async () => {
+      await request(app.getHttpServer()).get("/applications/stats").expect(401);
+    });
+
+    it("summarizes only the caller's non-deleted applications", async () => {
+      const server = app.getHttpServer();
+      // Fresh users: the shared ones above already own applications.
+      const statsUser = await registerAndGetAccessCookie();
+      const bystander = await registerAndGetAccessCookie();
+
+      async function create(cookie: string, body: Record<string, unknown>): Promise<string> {
+        const res = await request(server)
+          .post("/applications")
+          .set("Cookie", [cookie])
+          .send({ position: "Engineer", companyName: `E2E Co ${randomUUID()}`, ...body })
+          .expect(201);
+        return res.body.id as string;
+      }
+
+      await create(statsUser, {});
+      await create(statsUser, { status: "INTERVIEWING" });
+      await create(statsUser, { status: "OFFER" });
+      const deletedId = await create(statsUser, { status: "REJECTED" });
+      await request(server).delete(`/applications/${deletedId}`).set("Cookie", [statsUser]).expect(204);
+      await create(bystander, { status: "REJECTED" });
+
+      const res = await request(server).get("/applications/stats").set("Cookie", [statsUser]).expect(200);
+      const stats = ApplicationStatsSchema.parse(res.body);
+
+      expect(stats.total).toBe(3);
+      expect(stats.byStatus).toEqual({ APPLIED: 1, INTERVIEWING: 1, OFFER: 1, REJECTED: 0, WITHDRAWN: 0 });
+      expect(stats.weekly.at(-1)!.count).toBe(3);
+      expect(stats.conversion.interviewRate).toBeCloseTo(2 / 3);
+      expect(stats.conversion.offerFromInterviewRate).toBe(0.5);
+      // Everything was just created, so nothing is stale yet.
+      expect(stats.stale.count).toBe(0);
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
 import type { Company } from "@prisma/client";
+import { AppConfigService } from "../config/app-config.service";
 import { ApplicationsService } from "./applications.service";
 import { ApplicationsRepository, type ApplicationWithCompany } from "./applications.repository";
 
@@ -49,8 +50,10 @@ describe("ApplicationsService", () => {
             findByIdForUser: jest.fn(),
             updateApplication: jest.fn(),
             deleteApplication: jest.fn(),
+            findStatsRowsByUserId: jest.fn(),
           },
         },
+        { provide: AppConfigService, useValue: { reminderStaleDays: 7 } },
       ],
     }).compile();
 
@@ -59,6 +62,34 @@ describe("ApplicationsService", () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  describe("getStatsForUser", () => {
+    it("computes stats from the user's rows using the configured stale threshold", async () => {
+      const now = new Date("2026-11-06T12:00:00.000Z");
+      applicationsRepository.findStatsRowsByUserId.mockResolvedValue([
+        {
+          status: "APPLIED",
+          appliedAt: null,
+          createdAt: new Date("2026-10-20T00:00:00.000Z"),
+          updatedAt: new Date("2026-10-20T00:00:00.000Z"),
+        },
+        {
+          status: "OFFER",
+          appliedAt: new Date("2026-11-02T00:00:00.000Z"),
+          createdAt: new Date("2026-11-02T00:00:00.000Z"),
+          updatedAt: new Date("2026-11-05T00:00:00.000Z"),
+        },
+      ]);
+
+      const stats = await applicationsService.getStatsForUser("user-1", now);
+
+      expect(applicationsRepository.findStatsRowsByUserId).toHaveBeenCalledWith("user-1");
+      expect(stats.total).toBe(2);
+      expect(stats.byStatus).toMatchObject({ APPLIED: 1, OFFER: 1 });
+      expect(stats.stale).toEqual({ count: 1, thresholdDays: 7 });
+      expect(stats.weekly.at(-1)).toEqual({ weekStart: "2026-11-02", count: 1 });
+    });
+  });
 
   describe("findAllForUser", () => {
     it("only asks the repository for the given user's applications", async () => {

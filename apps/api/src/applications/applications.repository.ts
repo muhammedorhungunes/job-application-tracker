@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma, type Company } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import type { StatsRow } from "./application-stats";
 
 const withCompany = { company: { select: { id: true, name: true } } } satisfies Prisma.ApplicationInclude;
 
@@ -17,6 +18,14 @@ export class ApplicationsRepository {
       where: { userId },
       orderBy: { createdAt: "desc" },
       include: withCompany,
+    });
+  }
+
+  /** Only the columns the stats calculation needs; soft-deleted rows are filtered by the extension. */
+  findStatsRowsByUserId(userId: string): Promise<StatsRow[]> {
+    return this.prisma.client.application.findMany({
+      where: { userId },
+      select: { status: true, appliedAt: true, createdAt: true, updatedAt: true },
     });
   }
 

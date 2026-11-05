@@ -79,3 +79,41 @@ export const UpdateApplicationInputSchema = z
   })
   .refine((data) => Object.keys(data).length > 0, { message: "Provide at least one field to update" });
 export type UpdateApplicationInput = z.infer<typeof UpdateApplicationInputSchema>;
+
+const RateSchema = z.number().min(0).max(1).nullable();
+
+/**
+ * Response of GET /applications/stats. Conversion rates are computed from each
+ * application's *current* status (there's no status history yet), so they're
+ * lower bounds: an application interviewed and then rejected counts only as
+ * REJECTED. Rates are null when their denominator is 0.
+ */
+export const ApplicationStatsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  // An explicit object rather than z.record(): zod 3 infers a record with
+  // enum keys as Partial, and every status is always present here.
+  byStatus: z.object({
+    APPLIED: z.number().int().nonnegative(),
+    INTERVIEWING: z.number().int().nonnegative(),
+    OFFER: z.number().int().nonnegative(),
+    REJECTED: z.number().int().nonnegative(),
+    WITHDRAWN: z.number().int().nonnegative(),
+  }) satisfies z.ZodType<Record<ApplicationStatus, number>>,
+  /** Oldest first; weekStart is the Monday (UTC) of each week as YYYY-MM-DD. */
+  weekly: z.array(
+    z.object({
+      weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+  conversion: z.object({
+    interviewRate: RateSchema,
+    offerRate: RateSchema,
+    offerFromInterviewRate: RateSchema,
+  }),
+  stale: z.object({
+    count: z.number().int().nonnegative(),
+    thresholdDays: z.number().int().positive(),
+  }),
+});
+export type ApplicationStats = z.infer<typeof ApplicationStatsSchema>;

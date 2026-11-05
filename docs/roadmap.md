@@ -62,6 +62,15 @@ URL. It doesn't need to look good — it needs to work.
 - Tests (unit for service methods, e2e for auth + critical endpoints)
 - README: architecture decisions section
 - Basic stats charts
+- **Status (2026-11-06):** done on `feat/stats-dashboard`. `GET /applications/stats`
+  returns counts by status, applications per week (last 12 UTC weeks, by
+  `appliedAt` falling back to `createdAt`), conversion rates, and the stale count
+  (same rule as reminders). `/applications/stats` renders it with server-only
+  HTML/CSS charts — no chart library. Conversion rates use current status only
+  (no status history; `Activity.STATUS_CHANGE` is never written), so they're
+  shown as minimums. Test coverage was audited: every business-logic service
+  already had unit tests, and auth / applications / ai / notifications have
+  e2e tests. `README.md` added with an architecture decisions section.
 
 ## Out of scope until explicitly requested
 
@@ -77,3 +86,4 @@ See `CLAUDE.md` → *Scope discipline*:
 
 - [x] Drag & drop library for the Kanban board (Day 6-7) → `@dnd-kit/core`
 - [x] Email provider for reminders (Day 10) → Resend, via its REST API (no SDK)
+- [x] Chart library for stats (Day 11-12) → none; plain HTML/CSS server components
