@@ -17,7 +17,7 @@ The two sides need each other's URL, so do the steps in this order.
    | Setting | Value |
    |---|---|
    | Root Directory | *(empty — repo root, so the pnpm workspace resolves)* |
-   | Build Command | `pnpm turbo run build --filter=@job-tracker/api` |
+   | Build Command | `pnpm install --frozen-lockfile --prod=false && pnpm turbo run build --filter=@job-tracker/api` |
    | Start Command | `pnpm --filter @job-tracker/api start` |
    | Pre-deploy Command | `pnpm --filter @job-tracker/api prisma:deploy` |
    | Healthcheck Path | `/health` |
@@ -75,6 +75,11 @@ browser; everything else goes through the web server.
 On the Vercel URL: register → add an application → edit it → delete it.
 
 ## Troubleshooting
+
+- **Build fails with `Command "turbo" not found`:** Railway exposes service
+  variables at build time, so `NODE_ENV=production` makes pnpm skip
+  devDependencies (turbo, nest, typescript, prisma). The build command above
+  reinstalls with `--prod=false` for exactly this reason — don't drop it.
 
 - **Pre-deploy fails with `prisma: not found`:** the build pruned devDependencies.
   Move `prisma` from `devDependencies` to `dependencies` in `apps/api/package.json`.
