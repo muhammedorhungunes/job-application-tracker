@@ -10,6 +10,8 @@ export interface StatsRow {
   appliedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Every status seen in the recorded history (from/to of each entry), in any order; may repeat. */
+  reachedStatuses: ApplicationStatus[];
 }
 
 export interface StatsOptions {
@@ -56,15 +58,25 @@ export function computeApplicationStats(rows: StatsRow[], { now, staleDays, week
   const remindable: readonly ApplicationStatus[] = REMINDABLE_STATUSES;
   const staleCount = rows.filter((r) => remindable.includes(r.status) && r.updatedAt.getTime() <= staleBefore).length;
 
-  const reachedInterview = byStatus.INTERVIEWING + byStatus.OFFER;
+  // "Reached" = current status or anywhere in the recorded history, so an
+  // application interviewed and then rejected still counts as interviewed.
+  let reachedInterview = 0;
+  let reachedOffer = 0;
+  for (const row of rows) {
+    const reached = new Set([row.status, ...row.reachedStatuses]);
+    if (reached.has("OFFER")) reachedOffer += 1;
+    // An offer implies the interview stage even if it was skipped on the board.
+    if (reached.has("INTERVIEWING") || reached.has("OFFER")) reachedInterview += 1;
+  }
+
   return {
     total: rows.length,
     byStatus,
     weekly,
     conversion: {
       interviewRate: rate(reachedInterview, rows.length),
-      offerRate: rate(byStatus.OFFER, rows.length),
-      offerFromInterviewRate: rate(byStatus.OFFER, reachedInterview),
+      offerRate: rate(reachedOffer, rows.length),
+      offerFromInterviewRate: rate(reachedOffer, reachedInterview),
     },
     stale: { count: staleCount, thresholdDays: staleDays },
   };

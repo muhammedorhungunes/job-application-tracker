@@ -113,6 +113,12 @@ model Activity {
   application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   type          ActivityType
   description   String
+  // Structured so stats can query them; `description` is display text only.
+  // STATUS_CHANGE sets both, APPLICATION_CREATED sets toStatus, other types
+  // neither. Creation rows backfilled for pre-history applications have
+  // toStatus null since their initial status isn't known.
+  fromStatus    ApplicationStatus?
+  toStatus      ApplicationStatus?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

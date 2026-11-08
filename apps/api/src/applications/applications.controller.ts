@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post
 import {
   CreateApplicationInputSchema,
   UpdateApplicationInputSchema,
+  type Activity,
   type Application,
   type ApplicationStats,
   type CreateApplicationInput,
@@ -32,6 +33,11 @@ export class ApplicationsController {
   @Get(":id")
   async findOne(@Param("id") id: string, @CurrentUser() user: AccessTokenPayload): Promise<Application> {
     return this.applicationsService.findOneForUser(user.sub, id);
+  }
+
+  @Get(":id/activities")
+  async findActivities(@Param("id") id: string, @CurrentUser() user: AccessTokenPayload): Promise<Activity[]> {
+    return this.applicationsService.findActivitiesForUser(user.sub, id);
   }
 
   @Post()

@@ -10,6 +10,7 @@ function row(overrides: Partial<StatsRow> = {}): StatsRow {
     appliedAt: null,
     createdAt: new Date("2026-11-05T00:00:00.000Z"),
     updatedAt: new Date("2026-11-05T00:00:00.000Z"),
+    reachedStatuses: [],
     ...overrides,
   };
 }
@@ -78,6 +79,38 @@ describe("computeApplicationStats", () => {
     );
 
     expect(stats.conversion).toEqual({ interviewRate: 0.5, offerRate: 0.25, offerFromInterviewRate: 0.5 });
+  });
+
+  it("counts statuses reached in the history, not only the current one", () => {
+    const stats = computeApplicationStats(
+      [
+        // Interviewed, then rejected: still counts toward the interview rate.
+        row({ status: "REJECTED", reachedStatuses: ["INTERVIEWING", "REJECTED"] }),
+        // Offer, then withdrew: counts as both interviewed and offered.
+        row({ status: "WITHDRAWN", reachedStatuses: ["INTERVIEWING", "OFFER", "WITHDRAWN"] }),
+        row(),
+        row(),
+      ],
+      opts,
+    );
+
+    expect(stats.conversion).toEqual({ interviewRate: 0.5, offerRate: 0.25, offerFromInterviewRate: 0.5 });
+    expect(stats.byStatus).toMatchObject({ REJECTED: 1, WITHDRAWN: 1, APPLIED: 2 });
+  });
+
+  it("counts an offer as having reached the interview stage even if it was skipped", () => {
+    const stats = computeApplicationStats([row({ status: "REJECTED", reachedStatuses: ["OFFER", "REJECTED"] })], opts);
+
+    expect(stats.conversion).toEqual({ interviewRate: 1, offerRate: 1, offerFromInterviewRate: 1 });
+  });
+
+  it("counts an application once even if it reached a status repeatedly", () => {
+    const stats = computeApplicationStats(
+      [row({ status: "INTERVIEWING", reachedStatuses: ["INTERVIEWING", "APPLIED", "INTERVIEWING"] }), row()],
+      opts,
+    );
+
+    expect(stats.conversion.interviewRate).toBe(0.5);
   });
 
   it("returns a null offer-from-interview rate when nothing reached an interview", () => {
