@@ -1,0 +1,43 @@
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { ActivityTimeline } from "./activity-timeline";
+
+describe("ActivityTimeline", () => {
+  it("lists entries in the given order with their dates", () => {
+    render(
+      <ActivityTimeline
+        activities={[
+          {
+            id: "act-2",
+            type: "STATUS_CHANGE",
+            description: "Status changed from Applied to Interviewing",
+            fromStatus: "APPLIED",
+            toStatus: "INTERVIEWING",
+            createdAt: "2026-11-08T10:00:00.000Z",
+          },
+          {
+            id: "act-1",
+            type: "APPLICATION_CREATED",
+            description: "Added as Applied",
+            fromStatus: null,
+            toStatus: "APPLIED",
+            createdAt: "2026-11-01T10:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+
+    const items = within(screen.getByRole("list", { name: "Application history" })).getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Applied → InterviewingNov 8, 2026",
+      "Added as AppliedNov 1, 2026",
+    ]);
+  });
+
+  it("shows an empty state when there is no history", () => {
+    render(<ActivityTimeline activities={[]} />);
+
+    expect(screen.getByText("No history yet.")).toBeTruthy();
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+});
