@@ -83,10 +83,11 @@ export type UpdateApplicationInput = z.infer<typeof UpdateApplicationInputSchema
 const RateSchema = z.number().min(0).max(1).nullable();
 
 /**
- * Response of GET /applications/stats. Conversion rates are computed from each
- * application's *current* status (there's no status history yet), so they're
- * lower bounds: an application interviewed and then rejected counts only as
- * REJECTED. Rates are null when their denominator is 0.
+ * Response of GET /applications/stats. Conversion rates count every status an
+ * application has reached: its current status plus its recorded status
+ * history. Changes made before history was recorded (2026-11) aren't known,
+ * so for older applications the rates can still undercount. Rates are null
+ * when their denominator is 0.
  */
 export const ApplicationStatsSchema = z.object({
   total: z.number().int().nonnegative(),
