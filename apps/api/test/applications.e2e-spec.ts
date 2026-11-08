@@ -3,7 +3,7 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import request from "supertest";
-import { ApplicationStatsSchema } from "@job-tracker/types";
+import { ActivitySchema, ApplicationStatsSchema } from "@job-tracker/types";
 import { AppModule } from "../src/app.module";
 import { pickCookie } from "./helpers";
 
@@ -151,6 +151,71 @@ describe("Applications (e2e)", () => {
       expect(stats.conversion.offerFromInterviewRate).toBe(0.5);
       // Everything was just created, so nothing is stale yet.
       expect(stats.stale.count).toBe(0);
+    });
+
+    it("counts statuses an application passed through, not only its current one", async () => {
+      const server = app.getHttpServer();
+      const statsUser = await registerAndGetAccessCookie();
+
+      const createRes = await request(server)
+        .post("/applications")
+        .set("Cookie", [statsUser])
+        .send({ position: "Engineer", companyName: `E2E Co ${randomUUID()}`, status: "INTERVIEWING" })
+        .expect(201);
+      await request(server)
+        .patch(`/applications/${createRes.body.id}`)
+        .set("Cookie", [statsUser])
+        .send({ status: "REJECTED" })
+        .expect(200);
+
+      const res = await request(server).get("/applications/stats").set("Cookie", [statsUser]).expect(200);
+      const stats = ApplicationStatsSchema.parse(res.body);
+
+      expect(stats.byStatus.REJECTED).toBe(1);
+      expect(stats.conversion.interviewRate).toBe(1);
+      expect(stats.conversion.offerRate).toBe(0);
+    });
+  });
+
+  describe("GET /applications/:id/activities", () => {
+    it("records creation and each real status change, newest first", async () => {
+      const server = app.getHttpServer();
+      const createRes = await request(server)
+        .post("/applications")
+        .set("Cookie", [ownerCookie])
+        .send({ position: "Engineer", companyName: `E2E Co ${randomUUID()}` })
+        .expect(201);
+      const id: string = createRes.body.id;
+
+      for (const status of ["INTERVIEWING", "INTERVIEWING", "OFFER"]) {
+        await request(server).patch(`/applications/${id}`).set("Cookie", [ownerCookie]).send({ status }).expect(200);
+      }
+      // Non-status edits don't add entries either.
+      await request(server).patch(`/applications/${id}`).set("Cookie", [ownerCookie]).send({ notes: "Hi" }).expect(200);
+
+      const res = await request(server).get(`/applications/${id}/activities`).set("Cookie", [ownerCookie]).expect(200);
+      const activities = ActivitySchema.array().parse(res.body);
+
+      // The repeated INTERVIEWING was a no-op, so 3 entries, not 4.
+      expect(activities.map(({ type, fromStatus, toStatus }) => ({ type, fromStatus, toStatus }))).toEqual([
+        { type: "STATUS_CHANGE", fromStatus: "INTERVIEWING", toStatus: "OFFER" },
+        { type: "STATUS_CHANGE", fromStatus: "APPLIED", toStatus: "INTERVIEWING" },
+        { type: "APPLICATION_CREATED", fromStatus: null, toStatus: "APPLIED" },
+      ]);
+    });
+
+    it("returns 404 for another user's application", async () => {
+      const server = app.getHttpServer();
+      const createRes = await request(server)
+        .post("/applications")
+        .set("Cookie", [ownerCookie])
+        .send({ position: "Engineer", companyName: `E2E Co ${randomUUID()}` })
+        .expect(201);
+
+      await request(server)
+        .get(`/applications/${createRes.body.id}/activities`)
+        .set("Cookie", [otherUserCookie])
+        .expect(404);
     });
   });
 });
