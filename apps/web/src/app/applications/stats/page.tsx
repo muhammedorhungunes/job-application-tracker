@@ -28,8 +28,8 @@ export default async function StatsPage() {
             <StatTile label="Offer after interview" value={formatPercent(stats.conversion.offerFromInterviewRate)} />
           </section>
           <p className="-mt-2 text-xs text-muted-foreground">
-            Rates use each application&apos;s current status, so they&apos;re minimums: an application that was
-            interviewed and then rejected counts only as rejected.
+            Rates count every status an application has reached, so one that was interviewed and then rejected
+            still counts as interviewed. Status changes made before history tracking (Nov 2026) aren&apos;t known.
           </p>
 
           <div className="grid gap-6 md:grid-cols-2">

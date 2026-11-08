@@ -72,6 +72,24 @@ URL. It doesn't need to look good — it needs to work.
   already had unit tests, and auth / applications / ai / notifications have
   e2e tests. `README.md` added with an architecture decisions section.
 
+## Phase 2
+
+Started on 2026-11-08 before the Phase 1 deploy, by the user's decision: the
+deploy is still blocked on Railway signups, and all Phase 1 features are
+merged. The deploy stays the one open Phase 1 item.
+
+- **Status history**
+  - **Status (2026-11-08):** done on `feat/status-history`. Creating an
+    application writes an `APPLICATION_CREATED` activity, and every real status
+    change writes a `STATUS_CHANGE` activity with new `Activity.fromStatus` /
+    `toStatus` columns. Same-status updates (a Kanban card dropped back into its
+    own column) add nothing. The migration backfills an "Added" entry with
+    unknown status for existing applications. `GET /applications/:id/activities`
+    returns the timeline newest first, and the detail page renders it.
+    Conversion rates now count every status an application reached (current
+    plus both ends of each history entry) instead of current status only.
+    No new libraries.
+
 ## Out of scope until explicitly requested
 
 See `CLAUDE.md` → *Scope discipline*:

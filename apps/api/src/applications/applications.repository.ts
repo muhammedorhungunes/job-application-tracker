@@ -8,6 +8,17 @@ const withCompany = { company: { select: { id: true, name: true } } } satisfies 
 /** Row shape returned when an application is fetched/created with its company attached. */
 export type ApplicationWithCompany = Prisma.ApplicationGetPayload<{ include: typeof withCompany }>;
 
+const activityFields = {
+  id: true,
+  type: true,
+  description: true,
+  fromStatus: true,
+  toStatus: true,
+  createdAt: true,
+} satisfies Prisma.ActivitySelect;
+
+export type ActivityRow = Prisma.ActivityGetPayload<{ select: typeof activityFields }>;
+
 /** The only place in the applications module that touches Prisma directly. */
 @Injectable()
 export class ApplicationsRepository {
@@ -22,10 +33,32 @@ export class ApplicationsRepository {
   }
 
   /** Only the columns the stats calculation needs; soft-deleted rows are filtered by the extension. */
-  findStatsRowsByUserId(userId: string): Promise<StatsRow[]> {
-    return this.prisma.client.application.findMany({
+  async findStatsRowsByUserId(userId: string): Promise<StatsRow[]> {
+    const rows = await this.prisma.client.application.findMany({
       where: { userId },
-      select: { status: true, appliedAt: true, createdAt: true, updatedAt: true },
+      select: {
+        status: true,
+        appliedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        activities: { select: { fromStatus: true, toStatus: true } },
+      },
+    });
+    // Both ends of every entry count: `fromStatus` also covers applications
+    // created before history existed (their creation row has no toStatus).
+    return rows.map(({ activities, ...row }) => ({
+      ...row,
+      reachedStatuses: activities.flatMap((a) => [a.fromStatus, a.toStatus]).filter((s) => s !== null),
+    }));
+  }
+
+  // Bare id: ownership is the caller's job, same as updateApplication.
+  // `id` as a tiebreaker keeps the order stable for same-millisecond entries.
+  findActivitiesByApplicationId(applicationId: string): Promise<ActivityRow[]> {
+    return this.prisma.client.activity.findMany({
+      where: { applicationId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: activityFields,
     });
   }
 

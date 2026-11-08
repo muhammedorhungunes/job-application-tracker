@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { ApplicationSchema, type Application } from "@job-tracker/types";
+import { ActivitySchema, ApplicationSchema, type Activity, type Application } from "@job-tracker/types";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { ApplicationForm } from "@/components/application-form";
 import { DeleteApplicationButton } from "@/components/delete-application-button";
 import { ApiError } from "@/lib/api-client";
@@ -16,9 +17,20 @@ async function getApplication(id: string): Promise<Application> {
   }
 }
 
+async function getActivities(id: string): Promise<Activity[]> {
+  try {
+    return await serverApiFetch(`/applications/${encodeURIComponent(id)}/activities`, ActivitySchema.array());
+  } catch (error) {
+    // Fetched in parallel with the application: a missing one is reported by
+    // getApplication's notFound(), so a 404 here just yields no history.
+    if (error instanceof ApiError && error.status === 404) return [];
+    throw error;
+  }
+}
+
 export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const application = await getApplication(id);
+  const [application, activities] = await Promise.all([getApplication(id), getActivities(id)]);
 
   return (
     // The layout is wide for the Kanban board; forms read better narrower.
@@ -32,6 +44,7 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         <DeleteApplicationButton action={deleteApplication.bind(null, id)} />
       </div>
       <ApplicationForm action={updateApplication.bind(null, id)} application={application} submitLabel="Save changes" />
+      <ActivityTimeline activities={activities} />
     </div>
   );
 }

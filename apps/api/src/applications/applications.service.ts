@@ -1,9 +1,20 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type { Company, Prisma } from "@prisma/client";
-import type { Application, ApplicationStats, CreateApplicationInput, UpdateApplicationInput } from "@job-tracker/types";
+import type { ApplicationStatus, Company, Prisma } from "@prisma/client";
+import type {
+  Activity,
+  Application,
+  ApplicationStats,
+  CreateApplicationInput,
+  UpdateApplicationInput,
+} from "@job-tracker/types";
 import { AppConfigService } from "../config/app-config.service";
 import { computeApplicationStats } from "./application-stats";
-import { ApplicationsRepository, type ApplicationWithCompany } from "./applications.repository";
+import { ApplicationsRepository, type ActivityRow, type ApplicationWithCompany } from "./applications.repository";
+
+/** "INTERVIEWING" -> "Interviewing", for activity descriptions. */
+function statusLabel(status: ApplicationStatus): string {
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
 
 @Injectable()
 export class ApplicationsService {
@@ -31,18 +42,34 @@ export class ApplicationsService {
     return this.toApplication(row);
   }
 
+  /** Newest first. */
+  async findActivitiesForUser(userId: string, applicationId: string): Promise<Activity[]> {
+    const application = await this.applicationsRepository.findByIdForUser(applicationId, userId);
+    if (!application) {
+      throw new NotFoundException("Application not found");
+    }
+    const rows = await this.applicationsRepository.findActivitiesByApplicationId(applicationId);
+    return rows.map(this.toActivity);
+  }
+
   async create(userId: string, input: CreateApplicationInput): Promise<Application> {
     const company = await this.getOrCreateCompany(input.companyName);
+    const status = input.status ?? "APPLIED";
     const row = await this.applicationsRepository.createApplication({
       userId,
       companyId: company.id,
       position: input.position,
-      status: input.status ?? "APPLIED",
+      status,
       source: input.source ?? null,
       url: input.url ?? null,
       appliedAt: input.appliedAt ? new Date(input.appliedAt) : null,
       notes: input.notes ?? null,
       techStack: input.techStack ?? [],
+      // Nested write: the application and its first history entry are
+      // created atomically.
+      activities: {
+        create: { type: "APPLICATION_CREATED", toStatus: status, description: `Added as ${statusLabel(status)}` },
+      },
     });
     return this.toApplication(row);
   }
@@ -62,6 +89,18 @@ export class ApplicationsService {
     // "not provided". See UpdateApplicationInputSchema's doc comment.
     if ("position" in input) data.position = input.position;
     if ("status" in input) data.status = input.status;
+    if (input.status && input.status !== existing.status) {
+      // Only real changes are logged — e.g. a Kanban card dropped back into
+      // its own column sends the same status and shouldn't add an entry.
+      data.activities = {
+        create: {
+          type: "STATUS_CHANGE",
+          fromStatus: existing.status,
+          toStatus: input.status,
+          description: `Status changed from ${statusLabel(existing.status)} to ${statusLabel(input.status)}`,
+        },
+      };
+    }
     if ("source" in input) data.source = input.source;
     if ("url" in input) data.url = input.url;
     if ("notes" in input) data.notes = input.notes;
@@ -105,6 +144,17 @@ export class ApplicationsService {
       return existing;
     }
     return this.applicationsRepository.createCompany(name);
+  }
+
+  private toActivity(row: ActivityRow): Activity {
+    return {
+      id: row.id,
+      type: row.type,
+      description: row.description,
+      fromStatus: row.fromStatus,
+      toStatus: row.toStatus,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   private toApplication(row: ApplicationWithCompany): Application {

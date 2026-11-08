@@ -51,6 +51,7 @@ describe("ApplicationsService", () => {
             updateApplication: jest.fn(),
             deleteApplication: jest.fn(),
             findStatsRowsByUserId: jest.fn(),
+            findActivitiesByApplicationId: jest.fn(),
           },
         },
         { provide: AppConfigService, useValue: { reminderStaleDays: 7 } },
@@ -72,12 +73,14 @@ describe("ApplicationsService", () => {
           appliedAt: null,
           createdAt: new Date("2026-10-20T00:00:00.000Z"),
           updatedAt: new Date("2026-10-20T00:00:00.000Z"),
+          reachedStatuses: [],
         },
         {
           status: "OFFER",
           appliedAt: new Date("2026-11-02T00:00:00.000Z"),
           createdAt: new Date("2026-11-02T00:00:00.000Z"),
           updatedAt: new Date("2026-11-05T00:00:00.000Z"),
+          reachedStatuses: ["INTERVIEWING", "OFFER"],
         },
       ]);
 
@@ -154,6 +157,44 @@ describe("ApplicationsService", () => {
     });
   });
 
+  describe("findActivitiesForUser", () => {
+    it("checks ownership, then maps the history into the API shape", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.findActivitiesByApplicationId.mockResolvedValue([
+        {
+          id: "act-2",
+          type: "STATUS_CHANGE",
+          description: "Status changed from Applied to Interviewing",
+          fromStatus: "APPLIED",
+          toStatus: "INTERVIEWING",
+          createdAt: new Date("2026-09-03T00:00:00.000Z"),
+        },
+      ]);
+
+      const result = await applicationsService.findActivitiesForUser("user-1", "app-1");
+
+      expect(applicationsRepository.findByIdForUser).toHaveBeenCalledWith("app-1", "user-1");
+      expect(applicationsRepository.findActivitiesByApplicationId).toHaveBeenCalledWith("app-1");
+      expect(result).toEqual([
+        {
+          id: "act-2",
+          type: "STATUS_CHANGE",
+          description: "Status changed from Applied to Interviewing",
+          fromStatus: "APPLIED",
+          toStatus: "INTERVIEWING",
+          createdAt: "2026-09-03T00:00:00.000Z",
+        },
+      ]);
+    });
+
+    it("throws NotFoundException without reading history when the application isn't the user's", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(null);
+
+      await expect(applicationsService.findActivitiesForUser("user-1", "app-1")).rejects.toThrow(NotFoundException);
+      expect(applicationsRepository.findActivitiesByApplicationId).not.toHaveBeenCalled();
+    });
+  });
+
   describe("create", () => {
     const input = {
       position: "Backend Engineer",
@@ -178,6 +219,36 @@ describe("ApplicationsService", () => {
       expect(applicationsRepository.createCompany).not.toHaveBeenCalled();
       expect(applicationsRepository.createApplication).toHaveBeenCalledWith(
         expect.objectContaining({ userId: "user-1", companyId: "company-1", position: "Backend Engineer" }),
+      );
+    });
+
+    it("records the initial status as the first history entry", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.create("user-1", { ...input, status: "INTERVIEWING" });
+
+      expect(applicationsRepository.createApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "INTERVIEWING",
+          activities: {
+            create: { type: "APPLICATION_CREATED", toStatus: "INTERVIEWING", description: "Added as Interviewing" },
+          },
+        }),
+      );
+    });
+
+    it("defaults the initial status to APPLIED in both the row and its history", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.create("user-1", input);
+
+      expect(applicationsRepository.createApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "APPLIED",
+          activities: { create: expect.objectContaining({ toStatus: "APPLIED" }) },
+        }),
       );
     });
 
@@ -315,11 +386,39 @@ describe("ApplicationsService", () => {
 
     it("only forwards fields that were actually sent, leaving the rest untouched", async () => {
       applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
-      applicationsRepository.updateApplication.mockResolvedValue({ ...fakeRow, status: "OFFER" });
+      applicationsRepository.updateApplication.mockResolvedValue({ ...fakeRow, position: "Staff Engineer" });
 
-      await applicationsService.update("user-1", "app-1", { status: "OFFER" });
+      await applicationsService.update("user-1", "app-1", { position: "Staff Engineer" });
 
-      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", { status: "OFFER" });
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", { position: "Staff Engineer" });
+    });
+
+    it("records a status change in the history alongside the update", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.updateApplication.mockResolvedValue({ ...fakeRow, status: "INTERVIEWING" });
+
+      await applicationsService.update("user-1", "app-1", { status: "INTERVIEWING" });
+
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", {
+        status: "INTERVIEWING",
+        activities: {
+          create: {
+            type: "STATUS_CHANGE",
+            fromStatus: "APPLIED",
+            toStatus: "INTERVIEWING",
+            description: "Status changed from Applied to Interviewing",
+          },
+        },
+      });
+    });
+
+    it("doesn't record history when the status sent is the current one", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.updateApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.update("user-1", "app-1", { status: "APPLIED" });
+
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", { status: "APPLIED" });
     });
 
     it("forwards an explicit null to clear a nullable field", async () => {

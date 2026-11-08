@@ -101,14 +101,21 @@ there would bump `Application.updatedAt`, which is the very signal the rule
 reads. Each email carries a per-user, per-day idempotency key, so a retried
 job doesn't send it twice.
 
+**Status history lives in `Activity`.** Creating an application and every
+real status change write an `Activity` row in the same nested Prisma write as
+the update, so the log can't drift from the application. The statuses are
+stored as structured `fromStatus`/`toStatus` columns, not only as display
+text, because the stats query reads them: an application "reached" a status
+if it's its current one or appears on either end of any history entry.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
 
 ### Known limitations
 
-- **No status history yet.** Stats conversion rates are based on each
-  application's current status, so they are minimums: an application that was
-  interviewed and then rejected counts only as rejected.
+- **Status history starts in Nov 2026.** Applications created earlier got a
+  backfilled "Added" entry with an unknown initial status; changes made before
+  then aren't known, so stats can undercount for those applications.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new
   signups paused (see the roadmap).
