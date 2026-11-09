@@ -101,7 +101,15 @@ merged. The deploy stays the one open Phase 1 item.
     `Application.updatedAt`, so the stale reminder treats it as followed up.
     Interview times are converted to UTC in the browser and shown in the
     viewer's time zone. No new libraries.
-  - Next: e-mail reminder before an interview (separate PR, user decision).
+- **Interview reminder e-mails**
+  - **Status (2026-11-10):** done on `feat/interview-reminders`. An hourly
+    BullMQ scan (`INTERVIEW_REMINDER_CRON`) queues one e-mail per interview
+    starting within `INTERVIEW_REMINDER_LEAD_HOURS` (24), skipping cancelled
+    interviews and REJECTED / WITHDRAWN or deleted applications. The send job
+    re-checks before sending; `Interview.remindedForScheduledAt` makes it
+    once per interview time, so a rescheduled interview is reminded again.
+    Times are shown in `REMINDER_TZ`. Same queue, e-mail sender and retry
+    handling as the stale digest. No new libraries.
 
 ## Out of scope until explicitly requested
 

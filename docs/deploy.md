@@ -45,6 +45,9 @@ The two sides need each other's URL, so do the steps in this order.
    `ANTHROPIC_MODEL` defaults to `claude-opus-5-5`.
    `REMINDER_CRON` / `REMINDER_TZ` / `REMINDER_STALE_DAYS` default to
    `0 9 * * *` / `Europe/Istanbul` / `7` (daily reminder digest at 09:00 Istanbul).
+   `INTERVIEW_REMINDER_CRON` / `INTERVIEW_REMINDER_LEAD_HOURS` default to
+   `0 * * * *` / `24` (hourly scan, e-mail ~24h before each interview; the
+   time in the e-mail is shown in `REMINDER_TZ`).
 
    Resend's docs say a verified domain is required to send ("You must add and
    verify at least one domain to send emails with Resend"), so verify one under
