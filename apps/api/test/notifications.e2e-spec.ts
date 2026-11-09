@@ -8,12 +8,14 @@ import request from "supertest";
 import { AppModule } from "../src/app.module";
 import { ANTHROPIC_CLIENT } from "../src/ai/ai.client";
 import { EMAIL_SENDER, type EmailMessage } from "../src/notifications/email/email-sender";
+import { InterviewRemindersService } from "../src/notifications/interview-reminders.service";
 import { REMINDERS_QUEUE, SEND_DIGEST_JOB } from "../src/notifications/notifications.constants";
 import { RemindersService } from "../src/notifications/reminders.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { pickCookie } from "./helpers";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 /**
  * Reminder digests against real Postgres and Redis (the BullMQ worker really
@@ -24,6 +26,7 @@ describe("Reminder digests (e2e)", () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let reminders: RemindersService;
+  let interviewReminders: InterviewRemindersService;
   let queue: Queue;
   let cookie: string;
   let email: string;
@@ -62,6 +65,7 @@ describe("Reminder digests (e2e)", () => {
 
     prisma = app.get(PrismaService);
     reminders = app.get(RemindersService);
+    interviewReminders = app.get(InterviewRemindersService);
     queue = app.get<Queue>(getQueueToken(REMINDERS_QUEUE));
 
     email = `${randomUUID()}@test.local`;
@@ -142,5 +146,94 @@ describe("Reminder digests (e2e)", () => {
       sent: true,
     });
     expect(sentToUser().at(-1)!.text).toContain("Revived");
+  });
+
+  describe("interview reminders", () => {
+    const sentFor = (position: string): EmailMessage[] => sentToUser().filter((m) => m.text.includes(position));
+
+    async function scheduleInterview(applicationId: string, inHours: number, kind = "TECHNICAL"): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post(`/applications/${applicationId}/interviews`)
+        .set("Cookie", [cookie])
+        .send({ kind, scheduledAt: new Date(Date.now() + inHours * HOUR_MS).toISOString() })
+        .expect(201);
+      return res.body.id as string;
+    }
+
+    async function waitForEmail(position: string): Promise<void> {
+      for (let i = 0; i < 50 && sentFor(position).length === 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    it("reminds once about an interview within the lead time, through the real queue", async () => {
+      const soon = await createApplication("Interview soon", "INTERVIEWING");
+      const later = await createApplication("Interview later", "INTERVIEWING");
+      const past = await createApplication("Interview past", "INTERVIEWING");
+      const cancelled = await createApplication("Interview cancelled", "INTERVIEWING");
+      const rejected = await createApplication("Interview rejected", "INTERVIEWING");
+      await scheduleInterview(soon, 5);
+      await scheduleInterview(later, 48);
+      await scheduleInterview(past, -2);
+      const cancelledId = await scheduleInterview(cancelled, 5);
+      await request(app.getHttpServer())
+        .delete(`/applications/${cancelled}/interviews/${cancelledId}`)
+        .set("Cookie", [cookie])
+        .expect(204);
+      await scheduleInterview(rejected, 5);
+      await request(app.getHttpServer())
+        .patch(`/applications/${rejected}`)
+        .set("Cookie", [cookie])
+        .send({ status: "REJECTED" })
+        .expect(200);
+
+      await interviewReminders.enqueueDue(new Date());
+      await waitForEmail("Interview soon");
+      // Give the worker a moment to (not) send the others too.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(sentFor("Interview soon")).toHaveLength(1);
+      expect(sentFor("Interview soon")[0]!.subject).toMatch(
+        /^Reminder: Technical interview with Co Interview soon on .+ at \d{2}:\d{2} \(Europe\/Istanbul\)$/,
+      );
+      for (const position of ["Interview later", "Interview past", "Interview cancelled", "Interview rejected"]) {
+        expect(sentFor(position)).toHaveLength(0);
+      }
+
+      // Already reminded for this time: a second scan queues nothing for it.
+      await interviewReminders.enqueueDue(new Date());
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(sentFor("Interview soon")).toHaveLength(1);
+    });
+
+    it("reminds again after the interview is rescheduled", async () => {
+      const applicationId = await createApplication("Interview moved", "INTERVIEWING");
+      const interviewId = await scheduleInterview(applicationId, 5, "PHONE");
+      const first = (await prisma.client.interview.findFirstOrThrow({ where: { id: interviewId } })).scheduledAt;
+      await expect(
+        interviewReminders.send({ interviewId, scheduledAt: first.toISOString() }, new Date()),
+      ).resolves.toEqual({ sent: true });
+
+      const moved = new Date(Date.now() + 8 * HOUR_MS).toISOString();
+      await request(app.getHttpServer())
+        .patch(`/applications/${applicationId}/interviews/${interviewId}`)
+        .set("Cookie", [cookie])
+        .send({ scheduledAt: moved })
+        .expect(200);
+
+      // The job queued for the old time is now a no-op…
+      await expect(
+        interviewReminders.send({ interviewId, scheduledAt: first.toISOString() }, new Date()),
+      ).resolves.toEqual({ sent: false });
+      // …and the new time is reminded about.
+      await expect(interviewReminders.send({ interviewId, scheduledAt: moved }, new Date())).resolves.toEqual({
+        sent: true,
+      });
+      expect(sentFor("Interview moved")).toHaveLength(2);
+      expect(sentFor("Interview moved").map((m) => m.idempotencyKey)).toEqual([
+        `interview-reminder:${interviewId}:${first.toISOString()}`,
+        `interview-reminder:${interviewId}:${moved}`,
+      ]);
+    });
   });
 });
