@@ -90,6 +90,19 @@ merged. The deploy stays the one open Phase 1 item.
     plus both ends of each history entry) instead of current status only.
     No new libraries.
 
+- **Notes and interviews**
+  - **Status (2026-11-09):** done on `feat/notes-interviews`. Notes are `NOTE`
+    activities, added from the detail page's History section and soft-deleted
+    (not editable); only NOTE entries can be deleted. Interviews are their own
+    `Interview` model (kind, time, notes) under
+    `/applications/:applicationId/interviews`, editable and cancellable (soft
+    delete). Scheduling, rescheduling and cancelling write timeline entries;
+    kind/notes-only edits don't. Adding a note or changing an interview bumps
+    `Application.updatedAt`, so the stale reminder treats it as followed up.
+    Interview times are converted to UTC in the browser and shown in the
+    viewer's time zone. No new libraries.
+  - Next: e-mail reminder before an interview (separate PR, user decision).
+
 ## Out of scope until explicitly requested
 
 See `CLAUDE.md` → *Scope discipline*:

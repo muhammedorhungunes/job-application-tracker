@@ -108,6 +108,18 @@ stored as structured `fromStatus`/`toStatus` columns, not only as display
 text, because the stats query reads them: an application "reached" a status
 if it's its current one or appears on either end of any history entry.
 
+**Notes and interviews count as follow-up.** Adding a note or scheduling,
+moving or cancelling an interview bumps `Application.updatedAt` in the same
+transaction, so the stale reminder doesn't nag about an application you're
+actively working on. Interviews are their own table (they can be moved or
+cancelled); notes are `NOTE` entries in `Activity`, the only kind of history
+entry that can be deleted.
+
+**Interview times belong to the browser.** A `datetime-local` input has no
+time zone and server actions run in UTC, so the interview form converts the
+value to ISO in the browser before submitting, and times are formatted on the
+client after hydration (`useIsClient`), not on the server.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
