@@ -5,6 +5,7 @@ import { AppConfigService } from "./config/app-config.service";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { ApplicationsModule } from "./applications/applications.module";
+import { InterviewsModule } from "./interviews/interviews.module";
 import { AiModule } from "./ai/ai.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AppController } from "./app.controller";
@@ -20,6 +21,7 @@ import { AppService } from "./app.service";
     }),
     AuthModule,
     ApplicationsModule,
+    InterviewsModule,
     AiModule,
     NotificationsModule,
   ],
