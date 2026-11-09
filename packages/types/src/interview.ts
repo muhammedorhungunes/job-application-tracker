@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ApplicationStatusSchema, CompanySummarySchema } from "./application";
 
 /** Mirrors prisma/schema.prisma's `InterviewKind` enum by hand, same as ApplicationStatusValues. */
 export const InterviewKindValues = ["PHONE", "TECHNICAL", "ONSITE", "OTHER"] as const;
@@ -35,3 +36,20 @@ export const UpdateInterviewInputSchema = z
   })
   .refine((data) => Object.keys(data).length > 0, { message: "Provide at least one field to update" });
 export type UpdateInterviewInput = z.infer<typeof UpdateInterviewInputSchema>;
+
+/** GET /interviews/upcoming query. `days` is the look-ahead window from now. */
+export const UpcomingInterviewsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(30).default(7),
+});
+export type UpcomingInterviewsQuery = z.infer<typeof UpcomingInterviewsQuerySchema>;
+
+/** An interview across all of the user's applications, with enough of the application to link to it. */
+export const UpcomingInterviewSchema = InterviewSchema.extend({
+  application: z.object({
+    id: z.string(),
+    position: z.string(),
+    status: ApplicationStatusSchema,
+    company: CompanySummarySchema,
+  }),
+});
+export type UpcomingInterview = z.infer<typeof UpcomingInterviewSchema>;

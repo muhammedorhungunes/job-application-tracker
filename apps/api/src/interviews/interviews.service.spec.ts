@@ -25,6 +25,7 @@ describe("InterviewsService", () => {
           useValue: {
             findApplicationForUser: jest.fn(),
             findManyByApplicationId: jest.fn(),
+            findUpcomingForUser: jest.fn(),
             findByIdForApplication: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
@@ -39,6 +40,32 @@ describe("InterviewsService", () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  describe("listUpcoming", () => {
+    it("looks from an hour ago to `days` ahead and includes the application", async () => {
+      repository.findUpcomingForUser.mockResolvedValue([
+        {
+          ...row,
+          application: { id: "app-1", position: "Engineer", status: "INTERVIEWING", company: { id: "co-1", name: "Acme" } },
+        },
+      ]);
+
+      const result = await service.listUpcoming("user-1", 7, new Date("2026-11-10T12:00:00.000Z"));
+
+      expect(repository.findUpcomingForUser).toHaveBeenCalledWith(
+        "user-1",
+        new Date("2026-11-10T11:00:00.000Z"),
+        new Date("2026-11-17T12:00:00.000Z"),
+      );
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: "int-1",
+          scheduledAt: "2026-11-12T11:00:00.000Z",
+          application: { id: "app-1", position: "Engineer", status: "INTERVIEWING", company: { id: "co-1", name: "Acme" } },
+        }),
+      ]);
+    });
+  });
 
   describe("list", () => {
     it("checks ownership and maps rows into the API shape", async () => {
