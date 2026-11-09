@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { InterviewKind, Prisma } from "@prisma/client";
+import { ClosedApplicationStatusValues } from "@job-tracker/types";
 import { PrismaService } from "../prisma/prisma.service";
 
 const interviewFields = {
@@ -12,6 +13,15 @@ const interviewFields = {
 } satisfies Prisma.InterviewSelect;
 
 export type InterviewRow = Prisma.InterviewGetPayload<{ select: typeof interviewFields }>;
+
+const upcomingFields = {
+  ...interviewFields,
+  application: {
+    select: { id: true, position: true, status: true, company: { select: { id: true, name: true } } },
+  },
+} satisfies Prisma.InterviewSelect;
+
+export type UpcomingInterviewRow = Prisma.InterviewGetPayload<{ select: typeof upcomingFields }>;
 
 /** Timeline entry written alongside an interview change. */
 export interface InterviewActivity {
@@ -41,6 +51,22 @@ export class InterviewsRepository {
       where: { applicationId },
       orderBy: { scheduledAt: "asc" },
       select: interviewFields,
+    });
+  }
+
+  /**
+   * Interviews in [from, to] across the user's open applications, soonest
+   * first. The soft-delete extension only covers the top-level model, so the
+   * application's deletedAt is filtered explicitly.
+   */
+  findUpcomingForUser(userId: string, from: Date, to: Date): Promise<UpcomingInterviewRow[]> {
+    return this.prisma.client.interview.findMany({
+      where: {
+        scheduledAt: { gte: from, lte: to },
+        application: { userId, deletedAt: null, status: { notIn: [...ClosedApplicationStatusValues] } },
+      },
+      orderBy: { scheduledAt: "asc" },
+      select: upcomingFields,
     });
   }
 

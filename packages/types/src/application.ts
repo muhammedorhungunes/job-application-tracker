@@ -15,6 +15,9 @@ export const ApplicationStatusValues = [
 export const ApplicationStatusSchema = z.enum(ApplicationStatusValues);
 export type ApplicationStatus = z.infer<typeof ApplicationStatusSchema>;
 
+/** Statuses after which an application's interviews no longer matter (no reminders, not listed as upcoming). */
+export const ClosedApplicationStatusValues = ["REJECTED", "WITHDRAWN"] as const satisfies readonly ApplicationStatus[];
+
 /** Minimal company info embedded in an application response — not the full Company record. */
 export const CompanySummarySchema = z.object({
   id: z.string(),

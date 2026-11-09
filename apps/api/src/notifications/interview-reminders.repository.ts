@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { CLOSED_STATUSES } from "./notifications.constants";
+import { ClosedApplicationStatusValues } from "@job-tracker/types";
 
 const dueSelect = {
   id: true,
@@ -52,7 +52,7 @@ export class InterviewRemindersRepository {
         ],
         application: {
           deletedAt: null,
-          status: { notIn: [...CLOSED_STATUSES] },
+          status: { notIn: [...ClosedApplicationStatusValues] },
           user: { deletedAt: null },
         },
       },

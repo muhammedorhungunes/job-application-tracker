@@ -20,9 +20,6 @@ export const SendDigestJobDataSchema = z.object({
 });
 export type SendDigestJobData = z.infer<typeof SendDigestJobDataSchema>;
 
-/** Applications whose interviews are no longer worth a reminder. */
-export const CLOSED_STATUSES = ["REJECTED", "WITHDRAWN"] as const satisfies readonly ApplicationStatus[];
-
 export const SendInterviewReminderJobDataSchema = z.object({
   interviewId: z.string().min(1),
   /** The interview time this job is about; a reschedule makes the job obsolete. */

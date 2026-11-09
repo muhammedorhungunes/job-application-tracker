@@ -3,7 +3,7 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import request from "supertest";
-import { ActivitySchema, InterviewSchema } from "@job-tracker/types";
+import { ActivitySchema, InterviewSchema, UpcomingInterviewSchema } from "@job-tracker/types";
 import { AppModule } from "../src/app.module";
 import { pickCookie } from "./helpers";
 
@@ -138,5 +138,65 @@ describe("Interviews (e2e)", () => {
       .send({ notes: "x" })
       .expect(404);
     await request(server).delete(`${base}/${createRes.body.id}`).set("Cookie", [otherUserCookie]).expect(404);
+  });
+
+  describe("GET /interviews/upcoming", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const inDays = (days: number) => new Date(Date.now() + days * DAY_MS).toISOString();
+
+    it("lists the user's interviews in the window across open applications, soonest first", async () => {
+      const server = app.getHttpServer();
+      // Fresh user so other tests' interviews don't show up.
+      const cookie = await registerAndGetAccessCookie();
+      const newApplication = async (companyName: string) => {
+        const res = await request(server)
+          .post("/applications")
+          .set("Cookie", [cookie])
+          .send({ position: "Engineer", companyName: `${companyName} ${randomUUID()}` })
+          .expect(201);
+        return res.body.id as string;
+      };
+      const schedule = async (applicationId: string, scheduledAt: string) => {
+        const res = await request(server)
+          .post(`/applications/${applicationId}/interviews`)
+          .set("Cookie", [cookie])
+          .send({ kind: "TECHNICAL", scheduledAt })
+          .expect(201);
+        return res.body.id as string;
+      };
+
+      const open = await newApplication("Open");
+      const soon = await schedule(open, inDays(2));
+      const later = await schedule(open, inDays(10));
+      await schedule(open, inDays(-2));
+      const cancelled = await schedule(open, inDays(1));
+      await request(server).delete(`/applications/${open}/interviews/${cancelled}`).set("Cookie", [cookie]).expect(204);
+
+      const rejected = await newApplication("Rejected");
+      await schedule(rejected, inDays(1));
+      await request(server).patch(`/applications/${rejected}`).set("Cookie", [cookie]).send({ status: "REJECTED" }).expect(200);
+
+      const deleted = await newApplication("Deleted");
+      await schedule(deleted, inDays(1));
+      await request(server).delete(`/applications/${deleted}`).set("Cookie", [cookie]).expect(204);
+
+      const week = await request(server).get("/interviews/upcoming").set("Cookie", [cookie]).expect(200);
+      const weekItems = UpcomingInterviewSchema.array().parse(week.body);
+      expect(weekItems.map((i) => i.id)).toEqual([soon]);
+      expect(weekItems[0]?.application).toEqual(expect.objectContaining({ id: open, position: "Engineer" }));
+
+      const twoWeeks = await request(server).get("/interviews/upcoming?days=14").set("Cookie", [cookie]).expect(200);
+      expect(UpcomingInterviewSchema.array().parse(twoWeeks.body).map((i) => i.id)).toEqual([soon, later]);
+
+      const other = await request(server).get("/interviews/upcoming").set("Cookie", [otherUserCookie]).expect(200);
+      expect(other.body).toEqual([]);
+    });
+
+    it("validates the window and requires auth", async () => {
+      const server = app.getHttpServer();
+      await request(server).get("/interviews/upcoming?days=0").set("Cookie", [ownerCookie]).expect(400);
+      await request(server).get("/interviews/upcoming?days=abc").set("Cookie", [ownerCookie]).expect(400);
+      await request(server).get("/interviews/upcoming").expect(401);
+    });
   });
 });

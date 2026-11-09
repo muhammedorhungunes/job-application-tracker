@@ -110,6 +110,14 @@ merged. The deploy stays the one open Phase 1 item.
     once per interview time, so a rescheduled interview is reminded again.
     Times are shown in `REMINDER_TZ`. Same queue, e-mail sender and retry
     handling as the stale digest. No new libraries.
+- **Upcoming interviews**
+  - **Status (2026-11-10):** done on `feat/upcoming-interviews`.
+    `GET /interviews/upcoming?days=7` (1-30) lists the user's interviews from
+    an hour ago through the window, soonest first, with the application and
+    company; cancelled interviews and REJECTED / WITHDRAWN or deleted
+    applications are left out (same rule as reminders, now shared as
+    `ClosedApplicationStatusValues`). The applications page shows them above
+    the board when there are any. No schema change, no new libraries.
 
 ## Out of scope until explicitly requested
 

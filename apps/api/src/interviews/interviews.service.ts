@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import type { InterviewKind, Prisma } from "@prisma/client";
-import type { CreateInterviewInput, Interview, UpdateInterviewInput } from "@job-tracker/types";
-import { InterviewsRepository, type InterviewRow } from "./interviews.repository";
+import type { CreateInterviewInput, Interview, UpcomingInterview, UpdateInterviewInput } from "@job-tracker/types";
+import { InterviewsRepository, type InterviewRow, type UpcomingInterviewRow } from "./interviews.repository";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 const KIND_LABELS: Record<InterviewKind, string> = {
   PHONE: "Phone interview",
@@ -21,6 +23,14 @@ export class InterviewsService {
     await this.assertApplicationOwned(userId, applicationId);
     const rows = await this.interviewsRepository.findManyByApplicationId(applicationId);
     return rows.map(toInterview);
+  }
+
+  /** Soonest first; interviews already under way (started within the last hour) are still included. */
+  async listUpcoming(userId: string, days: number, now: Date = new Date()): Promise<UpcomingInterview[]> {
+    const from = new Date(now.getTime() - HOUR_MS);
+    const to = new Date(now.getTime() + days * 24 * HOUR_MS);
+    const rows = await this.interviewsRepository.findUpcomingForUser(userId, from, to);
+    return rows.map(toUpcomingInterview);
   }
 
   async create(userId: string, applicationId: string, input: CreateInterviewInput): Promise<Interview> {
@@ -93,5 +103,18 @@ function toInterview(row: InterviewRow): Interview {
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toUpcomingInterview(row: UpcomingInterviewRow): UpcomingInterview {
+  const { application } = row;
+  return {
+    ...toInterview(row),
+    application: {
+      id: application.id,
+      position: application.position,
+      status: application.status,
+      company: { id: application.company.id, name: application.company.name },
+    },
   };
 }
