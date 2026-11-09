@@ -6,6 +6,10 @@ export const SCAN_JOB = "scan";
 export const SEND_DIGEST_JOB = "send-digest";
 export const DAILY_SCAN_SCHEDULER_ID = "daily-reminder-scan";
 
+export const INTERVIEW_SCAN_JOB = "interview-scan";
+export const SEND_INTERVIEW_REMINDER_JOB = "send-interview-reminder";
+export const INTERVIEW_SCAN_SCHEDULER_ID = "interview-reminder-scan";
+
 /** Statuses still waiting on the company; offers and closed applications aren't nagged about. */
 export const REMINDABLE_STATUSES = ["APPLIED", "INTERVIEWING"] as const satisfies readonly ApplicationStatus[];
 
@@ -15,3 +19,13 @@ export const SendDigestJobDataSchema = z.object({
   digestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 export type SendDigestJobData = z.infer<typeof SendDigestJobDataSchema>;
+
+/** Applications whose interviews are no longer worth a reminder. */
+export const CLOSED_STATUSES = ["REJECTED", "WITHDRAWN"] as const satisfies readonly ApplicationStatus[];
+
+export const SendInterviewReminderJobDataSchema = z.object({
+  interviewId: z.string().min(1),
+  /** The interview time this job is about; a reschedule makes the job obsolete. */
+  scheduledAt: z.string().datetime(),
+});
+export type SendInterviewReminderJobData = z.infer<typeof SendInterviewReminderJobDataSchema>;

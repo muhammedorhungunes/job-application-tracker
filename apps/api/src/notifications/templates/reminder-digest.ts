@@ -1,4 +1,5 @@
 import type { ApplicationStatus } from "@prisma/client";
+import { escapeHtml } from "./html";
 
 export interface DigestApplication {
   id: string;
@@ -24,15 +25,6 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   REJECTED: "Rejected",
   WITHDRAWN: "Withdrawn",
 };
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function daysSince(date: Date, now: Date): number {
   return Math.floor((now.getTime() - date.getTime()) / DAY_MS);

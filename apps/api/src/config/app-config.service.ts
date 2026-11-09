@@ -78,6 +78,14 @@ export class AppConfigService {
     return this.config.get("REMINDER_STALE_DAYS", { infer: true });
   }
 
+  get interviewReminderCron(): string {
+    return this.config.get("INTERVIEW_REMINDER_CRON", { infer: true });
+  }
+
+  get interviewReminderLeadHours(): number {
+    return this.config.get("INTERVIEW_REMINDER_LEAD_HOURS", { infer: true });
+  }
+
   /** Cookie attributes differ between dev (same-site localhost) and prod.
    * The browser never receives these cookies directly — the web app's server
    * re-issues them on its own origin (apps/web/src/lib/auth-cookies.ts) — so

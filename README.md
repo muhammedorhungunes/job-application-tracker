@@ -120,6 +120,13 @@ time zone and server actions run in UTC, so the interview form converts the
 value to ISO in the browser before submitting, and times are formatted on the
 client after hydration (`useIsClient`), not on the server.
 
+**Interview reminders scan instead of scheduling.** An hourly job e-mails
+about interviews starting within `INTERVIEW_REMINDER_LEAD_HOURS` (24) rather
+than queueing one delayed job per interview, so reschedules and cancellations
+need no queue bookkeeping. `Interview.remindedForScheduledAt` records which
+time was reminded about; a reschedule makes it differ, so the new time is
+reminded again.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
@@ -129,5 +136,9 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 - **Status history starts in Nov 2026.** Applications created earlier got a
   backfilled "Added" entry with an unknown initial status; changes made before
   then aren't known, so stats can undercount for those applications.
+- **Reminder e-mails use one time zone.** Interview times in reminder
+  e-mails are shown in `REMINDER_TZ` (Europe/Istanbul), since the server
+  doesn't know each user's zone. Fine for a single user; a per-user zone
+  setting would be needed for more.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new
   signups paused (see the roadmap).
