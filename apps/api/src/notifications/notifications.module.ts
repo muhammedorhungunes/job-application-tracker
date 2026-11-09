@@ -1,6 +1,8 @@
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { emailSenderProvider } from "./email/email-sender.provider";
+import { InterviewRemindersRepository } from "./interview-reminders.repository";
+import { InterviewRemindersService } from "./interview-reminders.service";
 import { REMINDERS_QUEUE } from "./notifications.constants";
 import { RemindersProcessor } from "./reminders.processor";
 import { RemindersRepository } from "./reminders.repository";
@@ -9,6 +11,14 @@ import { RemindersService } from "./reminders.service";
 
 @Module({
   imports: [BullModule.registerQueue({ name: REMINDERS_QUEUE })],
-  providers: [emailSenderProvider, RemindersRepository, RemindersService, RemindersProcessor, RemindersScheduler],
+  providers: [
+    emailSenderProvider,
+    RemindersRepository,
+    RemindersService,
+    InterviewRemindersRepository,
+    InterviewRemindersService,
+    RemindersProcessor,
+    RemindersScheduler,
+  ],
 })
 export class NotificationsModule {}

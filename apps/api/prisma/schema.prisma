@@ -148,12 +148,16 @@ model Interview {
   kind          InterviewKind
   scheduledAt   DateTime
   notes         String?
+  // The scheduledAt the last reminder e-mail was about. A reschedule makes
+  // it differ from scheduledAt, so the interview is reminded again.
+  remindedForScheduledAt DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
   @@index([applicationId])
   @@index([deletedAt])
+  @@index([scheduledAt])
 }
 
 // One row per application included in a sent reminder digest. Kept apart

@@ -20,6 +20,10 @@ export const envSchema = z
     REMINDER_CRON: z.string().min(1).default("0 9 * * *"),
     REMINDER_TZ: z.string().min(1).default("Europe/Istanbul"),
     REMINDER_STALE_DAYS: z.coerce.number().int().positive().default(7),
+    // Interview reminders: an hourly scan e-mails about interviews starting
+    // within the lead time. Times in the e-mail are shown in REMINDER_TZ.
+    INTERVIEW_REMINDER_CRON: z.string().min(1).default("0 * * * *"),
+    INTERVIEW_REMINDER_LEAD_HOURS: z.coerce.number().int().positive().default(24),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && !env.RESEND_API_KEY) {
