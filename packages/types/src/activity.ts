@@ -2,7 +2,13 @@ import { z } from "zod";
 import { ApplicationStatusSchema } from "./application";
 
 /** Mirrors prisma/schema.prisma's `ActivityType` enum by hand, same as ApplicationStatusValues. */
-export const ActivityTypeValues = ["STATUS_CHANGE", "NOTE", "INTERVIEW_SCHEDULED", "APPLICATION_CREATED"] as const;
+export const ActivityTypeValues = [
+  "STATUS_CHANGE",
+  "NOTE",
+  "INTERVIEW_SCHEDULED",
+  "APPLICATION_CREATED",
+  "INTERVIEW_CANCELLED",
+] as const;
 export const ActivityTypeSchema = z.enum(ActivityTypeValues);
 export type ActivityType = z.infer<typeof ActivityTypeSchema>;
 
@@ -21,3 +27,9 @@ export const ActivitySchema = z.object({
   createdAt: z.string().datetime(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
+
+/** POST /applications/:id/notes. Notes can be added and deleted, not edited. */
+export const CreateNoteInputSchema = z.object({
+  text: z.string().trim().min(1).max(5000),
+});
+export type CreateNoteInput = z.infer<typeof CreateNoteInputSchema>;
