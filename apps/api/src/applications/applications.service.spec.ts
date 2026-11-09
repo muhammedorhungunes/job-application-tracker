@@ -52,6 +52,9 @@ describe("ApplicationsService", () => {
             deleteApplication: jest.fn(),
             findStatsRowsByUserId: jest.fn(),
             findActivitiesByApplicationId: jest.fn(),
+            createNote: jest.fn(),
+            findNote: jest.fn(),
+            deleteNote: jest.fn(),
           },
         },
         { provide: AppConfigService, useValue: { reminderStaleDays: 7 } },
@@ -192,6 +195,64 @@ describe("ApplicationsService", () => {
 
       await expect(applicationsService.findActivitiesForUser("user-1", "app-1")).rejects.toThrow(NotFoundException);
       expect(applicationsRepository.findActivitiesByApplicationId).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("addNote", () => {
+    it("checks ownership, then stores the note and returns it as an activity", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.createNote.mockResolvedValue({
+        id: "note-1",
+        type: "NOTE",
+        description: "Called the recruiter",
+        fromStatus: null,
+        toStatus: null,
+        createdAt: new Date("2026-11-09T10:00:00.000Z"),
+      });
+
+      const result = await applicationsService.addNote("user-1", "app-1", { text: "Called the recruiter" });
+
+      expect(applicationsRepository.findByIdForUser).toHaveBeenCalledWith("app-1", "user-1");
+      expect(applicationsRepository.createNote).toHaveBeenCalledWith("app-1", "Called the recruiter");
+      expect(result).toEqual(
+        expect.objectContaining({ id: "note-1", type: "NOTE", createdAt: "2026-11-09T10:00:00.000Z" }),
+      );
+    });
+
+    it("throws NotFoundException without writing when the application isn't the user's", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(null);
+
+      await expect(applicationsService.addNote("user-1", "app-1", { text: "Hi" })).rejects.toThrow(NotFoundException);
+      expect(applicationsRepository.createNote).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("removeNote", () => {
+    it("deletes a note that belongs to the user's application", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.findNote.mockResolvedValue({ id: "note-1" });
+
+      await applicationsService.removeNote("user-1", "app-1", "note-1");
+
+      expect(applicationsRepository.findNote).toHaveBeenCalledWith("app-1", "note-1");
+      expect(applicationsRepository.deleteNote).toHaveBeenCalledWith("note-1");
+    });
+
+    it("throws NotFoundException when the id isn't a note on that application", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.findNote.mockResolvedValue(null);
+
+      await expect(applicationsService.removeNote("user-1", "app-1", "status-change-1")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(applicationsRepository.deleteNote).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when the application isn't the user's", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(null);
+
+      await expect(applicationsService.removeNote("user-1", "app-1", "note-1")).rejects.toThrow(NotFoundException);
+      expect(applicationsRepository.findNote).not.toHaveBeenCalled();
     });
   });
 

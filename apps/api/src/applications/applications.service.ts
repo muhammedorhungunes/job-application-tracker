@@ -5,6 +5,7 @@ import type {
   Application,
   ApplicationStats,
   CreateApplicationInput,
+  CreateNoteInput,
   UpdateApplicationInput,
 } from "@job-tracker/types";
 import { AppConfigService } from "../config/app-config.service";
@@ -44,12 +45,24 @@ export class ApplicationsService {
 
   /** Newest first. */
   async findActivitiesForUser(userId: string, applicationId: string): Promise<Activity[]> {
-    const application = await this.applicationsRepository.findByIdForUser(applicationId, userId);
-    if (!application) {
-      throw new NotFoundException("Application not found");
-    }
+    await this.assertOwned(userId, applicationId);
     const rows = await this.applicationsRepository.findActivitiesByApplicationId(applicationId);
     return rows.map(this.toActivity);
+  }
+
+  async addNote(userId: string, applicationId: string, input: CreateNoteInput): Promise<Activity> {
+    await this.assertOwned(userId, applicationId);
+    const row = await this.applicationsRepository.createNote(applicationId, input.text);
+    return this.toActivity(row);
+  }
+
+  async removeNote(userId: string, applicationId: string, noteId: string): Promise<void> {
+    await this.assertOwned(userId, applicationId);
+    const note = await this.applicationsRepository.findNote(applicationId, noteId);
+    if (!note) {
+      throw new NotFoundException("Note not found");
+    }
+    await this.applicationsRepository.deleteNote(noteId);
   }
 
   async create(userId: string, input: CreateApplicationInput): Promise<Application> {
@@ -144,6 +157,13 @@ export class ApplicationsService {
       return existing;
     }
     return this.applicationsRepository.createCompany(name);
+  }
+
+  private async assertOwned(userId: string, applicationId: string): Promise<void> {
+    const application = await this.applicationsRepository.findByIdForUser(applicationId, userId);
+    if (!application) {
+      throw new NotFoundException("Application not found");
+    }
   }
 
   private toActivity(row: ActivityRow): Activity {

@@ -7,8 +7,12 @@ import { Prisma } from "@prisma/client";
  * delete). Without this, every repository method has to remember
  * `where: { deletedAt: null }` by hand — the most common soft-delete bug.
  *
- * Not applied to `RefreshToken` (hard-deleted via cascade, it's auth infra)
- * or `Activity` (a pure log with no independent lifecycle).
+ * Not applied to `RefreshToken` (hard-deleted via cascade, it's auth infra).
+ * `Activity` is included for user notes; system entries are never deleted.
+ *
+ * Caveat: these hooks only run on top-level queries. A nested relation
+ * select (e.g. `application.findMany({ select: { activities: ... } })`)
+ * bypasses them and needs its own `where: { deletedAt: null }`.
  *
  * Prisma can't redirect delete -> update generically via the `$allModels`
  * query hook (the underlying operation stays a DELETE), so each
@@ -28,6 +32,14 @@ export const softDeleteExtension = Prisma.defineExtension((client) =>
         findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
       },
       application: {
+        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+      },
+      activity: {
+        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+      },
+      interview: {
         findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
         findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
       },
@@ -60,6 +72,16 @@ export const softDeleteExtension = Prisma.defineExtension((client) =>
         },
         deleteMany(args: Prisma.ApplicationDeleteManyArgs) {
           return client.application.updateMany({ where: args.where, data: { deletedAt: new Date() } });
+        },
+      },
+      activity: {
+        delete(args: Prisma.ActivityDeleteArgs) {
+          return client.activity.update({ where: args.where, data: { deletedAt: new Date() } });
+        },
+      },
+      interview: {
+        delete(args: Prisma.InterviewDeleteArgs) {
+          return client.interview.update({ where: args.where, data: { deletedAt: new Date() } });
         },
       },
     },
