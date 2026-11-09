@@ -31,6 +31,16 @@ enum ActivityType {
   NOTE
   INTERVIEW_SCHEDULED
   APPLICATION_CREATED
+  INTERVIEW_CANCELLED
+  // Mirrored by hand in packages/types/src/activity.ts.
+}
+
+enum InterviewKind {
+  PHONE
+  TECHNICAL
+  ONSITE
+  OTHER
+  // Mirrored by hand in packages/types/src/interview.ts.
 }
 
 model User {
@@ -98,6 +108,7 @@ model Application {
 
   activities Activity[]
   reminders  ApplicationReminder[]
+  interviews Interview[]
 
   @@index([userId])
   @@index([companyId])
@@ -105,8 +116,9 @@ model Application {
   @@index([status])
 }
 
-// Pure timeline log, no independent meaning without its Application — no
-// deletedAt: a log entry is either part of the record or it's gone with it.
+// Timeline of an application. System entries (creation, status changes,
+// interview events) are a log and are never deleted; only user-written NOTE
+// entries can be, which is what deletedAt is for.
 model Activity {
   id            String       @id @default(cuid())
   applicationId String
@@ -121,8 +133,27 @@ model Activity {
   toStatus      ApplicationStatus?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
 
   @@index([applicationId])
+  @@index([deletedAt])
+}
+
+// An entity rather than an Activity entry: it can be rescheduled or
+// cancelled. Each of those also writes an Activity row for the timeline.
+model Interview {
+  id            String        @id @default(cuid())
+  applicationId String
+  application   Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind          InterviewKind
+  scheduledAt   DateTime
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  @@index([applicationId])
+  @@index([deletedAt])
 }
 
 // One row per application included in a sent reminder digest. Kept apart

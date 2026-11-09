@@ -218,4 +218,83 @@ describe("Applications (e2e)", () => {
         .expect(404);
     });
   });
+
+  describe("notes", () => {
+    async function createApplication(): Promise<{ id: string; updatedAt: string }> {
+      const res = await request(app.getHttpServer())
+        .post("/applications")
+        .set("Cookie", [ownerCookie])
+        .send({ position: "Engineer", companyName: `E2E Co ${randomUUID()}` })
+        .expect(201);
+      return res.body as { id: string; updatedAt: string };
+    }
+
+    it("adds a note to the timeline, bumps updatedAt, and deletes it again", async () => {
+      const server = app.getHttpServer();
+      const created = await createApplication();
+
+      const noteRes = await request(server)
+        .post(`/applications/${created.id}/notes`)
+        .set("Cookie", [ownerCookie])
+        .send({ text: "  Called the recruiter  " })
+        .expect(201);
+      const note = ActivitySchema.parse(noteRes.body);
+      expect(note).toEqual(expect.objectContaining({ type: "NOTE", description: "Called the recruiter" }));
+
+      const appRes = await request(server).get(`/applications/${created.id}`).set("Cookie", [ownerCookie]).expect(200);
+      expect(new Date(appRes.body.updatedAt).getTime()).toBeGreaterThan(new Date(created.updatedAt).getTime());
+
+      let activities = await request(server)
+        .get(`/applications/${created.id}/activities`)
+        .set("Cookie", [ownerCookie])
+        .expect(200);
+      expect(activities.body.map((a: { type: string }) => a.type)).toEqual(["NOTE", "APPLICATION_CREATED"]);
+
+      await request(server)
+        .delete(`/applications/${created.id}/notes/${note.id}`)
+        .set("Cookie", [ownerCookie])
+        .expect(204);
+      activities = await request(server)
+        .get(`/applications/${created.id}/activities`)
+        .set("Cookie", [ownerCookie])
+        .expect(200);
+      expect(activities.body.map((a: { type: string }) => a.type)).toEqual(["APPLICATION_CREATED"]);
+
+      // Already deleted.
+      await request(server)
+        .delete(`/applications/${created.id}/notes/${note.id}`)
+        .set("Cookie", [ownerCookie])
+        .expect(404);
+    });
+
+    it("won't delete system history through the notes route", async () => {
+      const server = app.getHttpServer();
+      const created = await createApplication();
+      const activities = await request(server)
+        .get(`/applications/${created.id}/activities`)
+        .set("Cookie", [ownerCookie])
+        .expect(200);
+
+      await request(server)
+        .delete(`/applications/${created.id}/notes/${activities.body[0].id}`)
+        .set("Cookie", [ownerCookie])
+        .expect(404);
+    });
+
+    it("rejects an empty note and hides notes from other users", async () => {
+      const server = app.getHttpServer();
+      const created = await createApplication();
+
+      await request(server)
+        .post(`/applications/${created.id}/notes`)
+        .set("Cookie", [ownerCookie])
+        .send({ text: "   " })
+        .expect(400);
+      await request(server)
+        .post(`/applications/${created.id}/notes`)
+        .set("Cookie", [otherUserCookie])
+        .send({ text: "Not mine" })
+        .expect(404);
+    });
+  });
 });

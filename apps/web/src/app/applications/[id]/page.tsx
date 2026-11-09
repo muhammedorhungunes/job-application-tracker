@@ -1,12 +1,29 @@
 import { notFound } from "next/navigation";
-import { ActivitySchema, ApplicationSchema, type Activity, type Application } from "@job-tracker/types";
+import type { z } from "zod";
+import {
+  ActivitySchema,
+  ApplicationSchema,
+  InterviewSchema,
+  type Activity,
+  type Application,
+  type Interview,
+} from "@job-tracker/types";
 import { ActivityTimeline } from "@/components/activity-timeline";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { InterviewList } from "@/components/interview-list";
 import { ApplicationForm } from "@/components/application-form";
-import { DeleteApplicationButton } from "@/components/delete-application-button";
 import { ApiError } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { serverApiFetch } from "@/lib/session";
-import { deleteApplication, updateApplication } from "../actions";
+import {
+  addNote,
+  cancelInterview,
+  createInterview,
+  deleteApplication,
+  deleteNote,
+  updateApplication,
+  updateInterview,
+} from "../actions";
 
 async function getApplication(id: string): Promise<Application> {
   try {
@@ -17,12 +34,13 @@ async function getApplication(id: string): Promise<Application> {
   }
 }
 
-async function getActivities(id: string): Promise<Activity[]> {
+// Sub-resources are fetched in parallel with the application: a missing
+// application is reported by getApplication's notFound(), so a 404 on these
+// just yields an empty list.
+async function getSubresource<T>(path: string, schema: z.ZodType<T[]>): Promise<T[]> {
   try {
-    return await serverApiFetch(`/applications/${encodeURIComponent(id)}/activities`, ActivitySchema.array());
+    return await serverApiFetch(path, schema);
   } catch (error) {
-    // Fetched in parallel with the application: a missing one is reported by
-    // getApplication's notFound(), so a 404 here just yields no history.
     if (error instanceof ApiError && error.status === 404) return [];
     throw error;
   }
@@ -30,7 +48,12 @@ async function getActivities(id: string): Promise<Activity[]> {
 
 export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [application, activities] = await Promise.all([getApplication(id), getActivities(id)]);
+  const base = `/applications/${encodeURIComponent(id)}`;
+  const [application, activities, interviews] = await Promise.all([
+    getApplication(id),
+    getSubresource<Activity>(`${base}/activities`, ActivitySchema.array()),
+    getSubresource<Interview>(`${base}/interviews`, InterviewSchema.array()),
+  ]);
 
   return (
     // The layout is wide for the Kanban board; forms read better narrower.
@@ -41,10 +64,25 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
           <p className="text-muted-foreground">{application.company.name}</p>
           <p className="text-sm text-muted-foreground">Last updated {formatDate(application.updatedAt)}</p>
         </div>
-        <DeleteApplicationButton action={deleteApplication.bind(null, id)} />
+        <ConfirmSubmitButton
+          action={deleteApplication.bind(null, id)}
+          confirmMessage="Delete this application?"
+          label="Delete"
+        />
       </div>
       <ApplicationForm action={updateApplication.bind(null, id)} application={application} submitLabel="Save changes" />
-      <ActivityTimeline activities={activities} />
+      <InterviewList
+        interviews={interviews}
+        now={new Date()}
+        createAction={createInterview.bind(null, id)}
+        updateAction={(interviewId) => updateInterview.bind(null, id, interviewId)}
+        cancelAction={(interviewId) => cancelInterview.bind(null, id, interviewId)}
+      />
+      <ActivityTimeline
+        activities={activities}
+        addNoteAction={addNote.bind(null, id)}
+        deleteNoteAction={(noteId) => deleteNote.bind(null, id, noteId)}
+      />
     </div>
   );
 }

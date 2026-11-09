@@ -41,7 +41,8 @@ export class ApplicationsRepository {
         appliedAt: true,
         createdAt: true,
         updatedAt: true,
-        activities: { select: { fromStatus: true, toStatus: true } },
+        // Nested selects bypass the soft-delete extension, hence the explicit filter.
+        activities: { where: { deletedAt: null }, select: { fromStatus: true, toStatus: true } },
       },
     });
     // Both ends of every entry count: `fromStatus` also covers applications
@@ -60,6 +61,35 @@ export class ApplicationsRepository {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: activityFields,
     });
+  }
+
+  /**
+   * Bumps the application's updatedAt in the same transaction: a note means
+   * the application is being followed up, so the stale-reminder rule (which
+   * keys off updatedAt) shouldn't nag about it.
+   */
+  async createNote(applicationId: string, text: string): Promise<ActivityRow> {
+    const [note] = await this.prisma.client.$transaction([
+      this.prisma.client.activity.create({
+        data: { applicationId, type: "NOTE", description: text },
+        select: activityFields,
+      }),
+      this.prisma.client.application.update({ where: { id: applicationId }, data: { updatedAt: new Date() } }),
+    ]);
+    return note;
+  }
+
+  /** Only NOTE entries match, so system history can't be deleted through the notes route. */
+  findNote(applicationId: string, noteId: string): Promise<{ id: string } | null> {
+    return this.prisma.client.activity.findFirst({
+      where: { id: noteId, applicationId, type: "NOTE" },
+      select: { id: true },
+    });
+  }
+
+  // Soft delete via the extension; caller checks ownership and type via findNote.
+  async deleteNote(noteId: string): Promise<void> {
+    await this.prisma.client.activity.delete({ where: { id: noteId } });
   }
 
   createApplication(data: Prisma.ApplicationUncheckedCreateInput): Promise<ApplicationWithCompany> {

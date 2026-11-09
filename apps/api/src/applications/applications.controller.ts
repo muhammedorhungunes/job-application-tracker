@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import {
   CreateApplicationInputSchema,
+  CreateNoteInputSchema,
   UpdateApplicationInputSchema,
   type Activity,
   type Application,
   type ApplicationStats,
   type CreateApplicationInput,
+  type CreateNoteInput,
   type UpdateApplicationInput,
 } from "@job-tracker/types";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
@@ -38,6 +40,26 @@ export class ApplicationsController {
   @Get(":id/activities")
   async findActivities(@Param("id") id: string, @CurrentUser() user: AccessTokenPayload): Promise<Activity[]> {
     return this.applicationsService.findActivitiesForUser(user.sub, id);
+  }
+
+  @Post(":id/notes")
+  @HttpCode(HttpStatus.CREATED)
+  async addNote(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(CreateNoteInputSchema)) body: CreateNoteInput,
+    @CurrentUser() user: AccessTokenPayload,
+  ): Promise<Activity> {
+    return this.applicationsService.addNote(user.sub, id, body);
+  }
+
+  @Delete(":id/notes/:noteId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeNote(
+    @Param("id") id: string,
+    @Param("noteId") noteId: string,
+    @CurrentUser() user: AccessTokenPayload,
+  ): Promise<void> {
+    await this.applicationsService.removeNote(user.sub, id, noteId);
   }
 
   @Post()
