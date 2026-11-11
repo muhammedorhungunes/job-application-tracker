@@ -13,7 +13,7 @@ const dueSelect = {
       id: true,
       position: true,
       company: { select: { name: true } },
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, timeZone: true } },
     },
   },
 } satisfies Prisma.InterviewSelect;
@@ -37,7 +37,9 @@ export class InterviewRemindersRepository {
    * Interviews in the window that haven't been reminded about for their
    * current time. Cancelled interviews are filtered by the soft-delete
    * extension; the nested application/user filters are explicit because the
-   * extension doesn't reach relation filters.
+   * extension doesn't reach relation filters. Users who turned interview
+   * reminders off in /settings are left out; `send` re-runs this, so turning
+   * it off also stops an already queued e-mail.
    */
   findDue(filter: DueFilter): Promise<DueInterview[]> {
     const interview = this.prisma.client.interview;
@@ -53,7 +55,7 @@ export class InterviewRemindersRepository {
         application: {
           deletedAt: null,
           status: { notIn: [...ClosedApplicationStatusValues] },
-          user: { deletedAt: null },
+          user: { deletedAt: null, interviewRemindersEnabled: true },
         },
       },
       orderBy: { scheduledAt: "asc" },

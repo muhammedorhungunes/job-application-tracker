@@ -19,13 +19,26 @@ export type ReminderCandidate = Prisma.ApplicationGetPayload<{ select: typeof ca
 export interface CandidateFilter {
   statuses: readonly ApplicationStatus[];
   updatedBefore: Date;
-  userId?: string;
+  userId: string;
 }
+
+const digestUserSelect = { id: true, timeZone: true, staleDays: true } satisfies Prisma.UserSelect;
+
+/** A user who wants the stale digest, with the overrides that decide when and what it covers. */
+export type DigestUser = Prisma.UserGetPayload<{ select: typeof digestUserSelect }>;
 
 /** The only place in the notifications module that touches Prisma directly. */
 @Injectable()
 export class RemindersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Users with the digest turned on; deleted users are filtered by the soft-delete extension. */
+  findDigestUsers(userId?: string): Promise<DigestUser[]> {
+    return this.prisma.client.user.findMany({
+      where: { staleDigestEnabled: true, ...(userId ? { id: userId } : {}) },
+      select: digestUserSelect,
+    });
+  }
 
   /** Deleted applications are filtered by the soft-delete extension; deleted users here. */
   findCandidates(filter: CandidateFilter): Promise<ReminderCandidate[]> {
@@ -33,8 +46,8 @@ export class RemindersRepository {
       where: {
         status: { in: [...filter.statuses] },
         updatedAt: { lte: filter.updatedBefore },
+        userId: filter.userId,
         user: { deletedAt: null },
-        ...(filter.userId ? { userId: filter.userId } : {}),
       },
       orderBy: { updatedAt: "asc" },
       select: candidateSelect,

@@ -17,11 +17,14 @@ export const envSchema = z
     // An empty `RESEND_API_KEY=` line in .env counts as unset.
     RESEND_API_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(1).optional()),
     EMAIL_FROM: z.string().min(1).default("Job Tracker <onboarding@resend.dev>"),
-    REMINDER_CRON: z.string().min(1).default("0 9 * * *"),
+    // Stale digest: an hourly scan sends each user's digest at REMINDER_HOUR
+    // in their own time zone. REMINDER_TZ / REMINDER_STALE_DAYS are the
+    // defaults for users who haven't set their own in /settings.
+    REMINDER_HOUR: z.coerce.number().int().min(0).max(23).default(9),
     REMINDER_TZ: z.string().min(1).default("Europe/Istanbul"),
     REMINDER_STALE_DAYS: z.coerce.number().int().positive().default(7),
     // Interview reminders: an hourly scan e-mails about interviews starting
-    // within the lead time. Times in the e-mail are shown in REMINDER_TZ.
+    // within the lead time. Times are shown in the user's time zone.
     INTERVIEW_REMINDER_CRON: z.string().min(1).default("0 * * * *"),
     INTERVIEW_REMINDER_LEAD_HOURS: z.coerce.number().int().positive().default(24),
   })

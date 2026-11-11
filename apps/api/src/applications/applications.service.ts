@@ -10,6 +10,7 @@ import type {
   UpdateApplicationInput,
 } from "@job-tracker/types";
 import { AppConfigService } from "../config/app-config.service";
+import { effectiveReminderSettings } from "../settings/effective-settings";
 import { computeApplicationStats } from "./application-stats";
 import {
   ApplicationsRepository,
@@ -44,8 +45,15 @@ export class ApplicationsService {
   ) {}
 
   async getStatsForUser(userId: string, now: Date = new Date()): Promise<ApplicationStats> {
-    const rows = await this.applicationsRepository.findStatsRowsByUserId(userId);
-    return computeApplicationStats(rows, { now, staleDays: this.config.reminderStaleDays });
+    const [rows, overrides] = await Promise.all([
+      this.applicationsRepository.findStatsRowsByUserId(userId),
+      this.applicationsRepository.findUserReminderOverrides(userId),
+    ]);
+    const { staleDays } = effectiveReminderSettings(overrides ?? { timeZone: null, staleDays: null }, {
+      timeZone: this.config.reminderTz,
+      staleDays: this.config.reminderStaleDays,
+    });
+    return computeApplicationStats(rows, { now, staleDays });
   }
 
   async findAllForUser(userId: string, query: ApplicationListQuery = {}): Promise<Application[]> {

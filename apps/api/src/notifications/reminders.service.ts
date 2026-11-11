@@ -4,7 +4,9 @@ import type { Queue } from "bullmq";
 import { AppConfigService } from "../config/app-config.service";
 import { EMAIL_SENDER, type EmailSender } from "./email/email-sender";
 import { REMINDABLE_STATUSES, REMINDERS_QUEUE, SEND_DIGEST_JOB, type SendDigestJobData } from "./notifications.constants";
-import { RemindersRepository, type ReminderCandidate } from "./reminders.repository";
+import { effectiveReminderSettings } from "../settings/effective-settings";
+import { RemindersRepository, type DigestUser, type ReminderCandidate } from "./reminders.repository";
+import { localDate, localHour } from "./time-zone";
 import { buildReminderDigest } from "./templates/reminder-digest";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,18 +22,27 @@ export class RemindersService {
     @InjectQueue(REMINDERS_QUEUE) private readonly queue: Queue<SendDigestJobData>,
   ) {}
 
-  /** Run by the daily scan: queues one digest per user with something to remind about. */
+  /**
+   * Run by the hourly scan: queues one digest for each user whose local time
+   * is REMINDER_HOUR and who has something to be reminded about.
+   */
   async enqueueDigests(now: Date): Promise<number> {
-    const userIds = [...new Set((await this.findDue(now)).map((c) => c.userId))];
-    const digestDate = now.toISOString().slice(0, 10);
+    const jobs: { userId: string; digestDate: string }[] = [];
+    for (const user of await this.repository.findDigestUsers()) {
+      const { timeZone, staleDays } = this.settingsFor(user);
+      if (localHour(now, timeZone) !== this.config.reminderHour) continue;
+      if ((await this.findDue(now, user.id, staleDays)).length === 0) continue;
+      jobs.push({ userId: user.id, digestDate: localDate(now, timeZone) });
+    }
+
     await this.queue.addBulk(
-      userIds.map((userId) => ({
+      jobs.map((data) => ({
         name: SEND_DIGEST_JOB,
-        data: { userId, digestDate },
+        data,
         opts: {
           // Collapses a duplicate scan on the same day while the job is still queued.
           // BullMQ rejects ":" in custom ids.
-          jobId: `digest-${userId}-${digestDate}`,
+          jobId: `digest-${data.userId}-${data.digestDate}`,
           attempts: 3,
           backoff: { type: "exponential", delay: 30_000 },
           removeOnComplete: true,
@@ -39,17 +50,21 @@ export class RemindersService {
         },
       })),
     );
-    this.logger.log(`Queued ${userIds.length} reminder digest(s) for ${digestDate}`);
-    return userIds.length;
+    this.logger.log(`Queued ${jobs.length} reminder digest(s)`);
+    return jobs.length;
   }
 
   /**
-   * Re-checks what's due (an application may have been updated while the job
-   * waited), sends one email, then records the reminders. If recording fails
-   * the job retries, and the idempotency key stops a second email.
+   * Re-checks the user's settings and what's due (either may have changed
+   * while the job waited), sends one email, then records the reminders. If
+   * recording fails the job retries, and the idempotency key stops a second email.
    */
   async sendDigest(job: SendDigestJobData, now: Date): Promise<{ sent: boolean }> {
-    const due = await this.findDue(now, job.userId);
+    const [user] = await this.repository.findDigestUsers(job.userId);
+    if (!user) {
+      return { sent: false };
+    }
+    const due = await this.findDue(now, user.id, this.settingsFor(user).staleDays);
     if (due.length === 0) {
       return { sent: false };
     }
@@ -83,10 +98,17 @@ export class RemindersService {
     return { sent: true };
   }
 
-  private async findDue(now: Date, userId?: string): Promise<ReminderCandidate[]> {
+  private settingsFor(user: DigestUser): { timeZone: string; staleDays: number } {
+    return effectiveReminderSettings(user, {
+      timeZone: this.config.reminderTz,
+      staleDays: this.config.reminderStaleDays,
+    });
+  }
+
+  private async findDue(now: Date, userId: string, staleDays: number): Promise<ReminderCandidate[]> {
     const candidates = await this.repository.findCandidates({
       statuses: REMINDABLE_STATUSES,
-      updatedBefore: new Date(now.getTime() - this.config.reminderStaleDays * DAY_MS),
+      updatedBefore: new Date(now.getTime() - staleDays * DAY_MS),
       userId,
     });
     return candidates.filter(isDue);

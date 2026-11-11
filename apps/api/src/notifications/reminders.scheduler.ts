@@ -4,6 +4,7 @@ import type { Queue } from "bullmq";
 import { AppConfigService } from "../config/app-config.service";
 import {
   DAILY_SCAN_SCHEDULER_ID,
+  DIGEST_SCAN_PATTERN,
   INTERVIEW_SCAN_JOB,
   INTERVIEW_SCAN_SCHEDULER_ID,
   REMINDERS_QUEUE,
@@ -21,21 +22,21 @@ export class RemindersScheduler implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const pattern = this.config.reminderCron;
-    const tz = this.config.reminderTz;
+    // Hourly in UTC: each user's digest goes out at REMINDER_HOUR in their own
+    // zone, so the scan has to run every hour rather than once a day.
     await this.queue.upsertJobScheduler(
       DAILY_SCAN_SCHEDULER_ID,
-      { pattern, tz },
+      { pattern: DIGEST_SCAN_PATTERN },
       { name: SCAN_JOB, opts: { removeOnComplete: true, removeOnFail: 100 } },
     );
-    this.logger.log(`Reminder scan scheduled: "${pattern}" (${tz})`);
+    this.logger.log(`Reminder digest scan scheduled: "${DIGEST_SCAN_PATTERN}" (UTC), sends at ${this.config.reminderHour}:00 local`);
 
     const interviewPattern = this.config.interviewReminderCron;
     await this.queue.upsertJobScheduler(
       INTERVIEW_SCAN_SCHEDULER_ID,
-      { pattern: interviewPattern, tz },
+      { pattern: interviewPattern },
       { name: INTERVIEW_SCAN_JOB, opts: { removeOnComplete: true, removeOnFail: 100 } },
     );
-    this.logger.log(`Interview reminder scan scheduled: "${interviewPattern}" (${tz})`);
+    this.logger.log(`Interview reminder scan scheduled: "${interviewPattern}" (UTC)`);
   }
 }

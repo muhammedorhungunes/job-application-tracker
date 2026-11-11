@@ -89,13 +89,14 @@ their own table so they can be rotated and revoked per device.
 
 **Server components by default.** Data is read in server components, and
 mutations go through server actions with `useActionState`. `"use client"` is
-used only where it's needed (the drag-and-drop board, the job-posting import).
+used only where it's needed (the drag-and-drop board, the job-posting import,
+forms driven by `useActionState`).
 The stats charts are plain HTML and CSS rendered on the server, with no chart
 library and no client JS.
 
 **Reminders fire once per stretch of silence.** An application is "stale"
-when it's `APPLIED` or `INTERVIEWING` and hasn't been updated for
-`REMINDER_STALE_DAYS`. Sent reminders are logged in their own
+when it's `APPLIED` or `INTERVIEWING` and hasn't been updated for the
+user's threshold (`REMINDER_STALE_DAYS` unless set on `/settings`). Sent reminders are logged in their own
 `ApplicationReminder` table rather than on `Application`, because writing
 there would bump `Application.updatedAt`, which is the very signal the rule
 reads. Each email carries a per-user, per-day idempotency key, so a retried
@@ -135,6 +136,19 @@ client JavaScript. Both sides parse the params with the same zod schema; the
 page drops an invalid field instead of failing. Prisma doesn't escape `%` or
 `_` in `contains`, so the repository escapes them itself.
 
+**Settings override env defaults.** Time zone and stale threshold are
+nullable columns on `User`; null means `REMINDER_TZ` / `REMINDER_STALE_DAYS`,
+so changing the env still moves every user who never picked a value. One
+helper (`settings/effective-settings.ts`) resolves them for the reminder jobs
+and the stats stale count, and falls back to the default if a stored zone is
+no longer valid, so one row can't break a scan for everyone.
+
+**Digests go out at the user's local time.** The digest scan runs every hour
+(UTC) and only queues users whose local hour is `REMINDER_HOUR` (9), so each
+user gets it at 09:00 in their own zone. The digest date in the idempotency
+key is the user's local date. Both send jobs re-read the settings, so turning
+a reminder off also stops one that's already queued.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
@@ -144,10 +158,9 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 - **Status history starts in Nov 2026.** Applications created earlier got a
   backfilled "Added" entry with an unknown initial status; changes made before
   then aren't known, so stats can undercount for those applications.
-- **Reminder e-mails use one time zone.** Interview times in reminder
-  e-mails are shown in `REMINDER_TZ` (Europe/Istanbul), since the server
-  doesn't know each user's zone. Fine for a single user; a per-user zone
-  setting would be needed for more.
+- **A missed scan hour skips that day's digest.** If the API is down during
+  a user's 09:00 hour, they get no digest that day; the next one covers the
+  same applications.
 - **Tech filter is case-sensitive.** Tech stack entries are stored as typed,
   so "React" and "react" are separate filter options.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new

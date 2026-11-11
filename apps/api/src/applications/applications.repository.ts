@@ -46,6 +46,11 @@ export class ApplicationsRepository {
     return this.prisma.client.application.findMany({ where: { userId }, select: { techStack: true } });
   }
 
+  /** The user's reminder overrides, for the stats stale count (same threshold as the digest). */
+  findUserReminderOverrides(userId: string): Promise<{ timeZone: string | null; staleDays: number | null } | null> {
+    return this.prisma.client.user.findFirst({ where: { id: userId }, select: { timeZone: true, staleDays: true } });
+  }
+
   /** Only the columns the stats calculation needs; soft-deleted rows are filtered by the extension. */
   async findStatsRowsByUserId(userId: string): Promise<StatsRow[]> {
     const rows = await this.prisma.client.application.findMany({

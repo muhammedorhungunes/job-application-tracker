@@ -66,8 +66,8 @@ export class AppConfigService {
     return this.config.get("EMAIL_FROM", { infer: true });
   }
 
-  get reminderCron(): string {
-    return this.config.get("REMINDER_CRON", { infer: true });
+  get reminderHour(): number {
+    return this.config.get("REMINDER_HOUR", { infer: true });
   }
 
   get reminderTz(): string {

@@ -52,13 +52,14 @@ describe("ApplicationsService", () => {
             updateApplication: jest.fn(),
             deleteApplication: jest.fn(),
             findStatsRowsByUserId: jest.fn(),
+            findUserReminderOverrides: jest.fn().mockResolvedValue({ timeZone: null, staleDays: null }),
             findActivitiesByApplicationId: jest.fn(),
             createNote: jest.fn(),
             findNote: jest.fn(),
             deleteNote: jest.fn(),
           },
         },
-        { provide: AppConfigService, useValue: { reminderStaleDays: 7 } },
+        { provide: AppConfigService, useValue: { reminderStaleDays: 7, reminderTz: "Europe/Istanbul" } },
       ],
     }).compile();
 
@@ -95,6 +96,24 @@ describe("ApplicationsService", () => {
       expect(stats.byStatus).toMatchObject({ APPLIED: 1, OFFER: 1 });
       expect(stats.stale).toEqual({ count: 1, thresholdDays: 7 });
       expect(stats.weekly.at(-1)).toEqual({ weekStart: "2026-11-02", count: 1 });
+    });
+
+    it("uses the user's own stale threshold when set", async () => {
+      applicationsRepository.findStatsRowsByUserId.mockResolvedValue([
+        {
+          status: "APPLIED",
+          appliedAt: null,
+          createdAt: new Date("2026-10-20T00:00:00.000Z"),
+          updatedAt: new Date("2026-10-20T00:00:00.000Z"),
+          reachedStatuses: [],
+        },
+      ]);
+      applicationsRepository.findUserReminderOverrides.mockResolvedValue({ timeZone: null, staleDays: 30 });
+
+      const stats = await applicationsService.getStatsForUser("user-1", new Date("2026-11-06T12:00:00.000Z"));
+
+      expect(applicationsRepository.findUserReminderOverrides).toHaveBeenCalledWith("user-1");
+      expect(stats.stale).toEqual({ count: 0, thresholdDays: 30 });
     });
   });
 
