@@ -43,11 +43,14 @@ The two sides need each other's URL, so do the steps in this order.
 
    `PORT` is injected by Railway; don't set it. `JWT_*_TTL` default to 15m / 30d.
    `ANTHROPIC_MODEL` defaults to `claude-opus-5-5`.
-   `REMINDER_CRON` / `REMINDER_TZ` / `REMINDER_STALE_DAYS` default to
-   `0 9 * * *` / `Europe/Istanbul` / `7` (daily reminder digest at 09:00 Istanbul).
+   `REMINDER_HOUR` / `REMINDER_TZ` / `REMINDER_STALE_DAYS` default to
+   `9` / `Europe/Istanbul` / `7`: an hourly scan sends each user's digest at
+   09:00 in their own time zone. `REMINDER_TZ` and `REMINDER_STALE_DAYS` are
+   only defaults for users who haven't set their own on `/settings`.
    `INTERVIEW_REMINDER_CRON` / `INTERVIEW_REMINDER_LEAD_HOURS` default to
-   `0 * * * *` / `24` (hourly scan, e-mail ~24h before each interview; the
-   time in the e-mail is shown in `REMINDER_TZ`).
+   `0 * * * *` / `24` (hourly scan, e-mail ~24h before each interview, with
+   the time shown in the user's zone). `REMINDER_CRON` no longer exists;
+   remove it if it was set.
 
    Resend's docs say a verified domain is required to send ("You must add and
    verify at least one domain to send emails with Resend"), so verify one under

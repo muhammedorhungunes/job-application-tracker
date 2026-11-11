@@ -127,6 +127,15 @@ merged. The deploy stays the one open Phase 1 item.
     the dropdown. The board's filter bar is a server-rendered GET form, so
     filters live in the URL; invalid params are dropped. Upcoming interviews
     aren't filtered. No schema change, no new libraries.
+- **User settings**
+  - **Status (2026-11-12):** done on `feat/user-settings`. `/settings` lets
+    a user change their name, time zone, stale digest on/off and its day
+    threshold (1-90), and interview reminders on/off (`GET`/`PATCH /settings`,
+    new nullable / boolean columns on `User`). Unset values fall back to
+    `REMINDER_TZ` / `REMINDER_STALE_DAYS`. The digest scan is now hourly and
+    sends at `REMINDER_HOUR` (9) in each user's zone (`REMINDER_CRON` removed);
+    interview reminder times use the user's zone; the stats stale count uses
+    the user's threshold. No new libraries.
 
 ## Out of scope until explicitly requested
 
