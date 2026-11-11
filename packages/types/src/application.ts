@@ -83,6 +83,44 @@ export const UpdateApplicationInputSchema = z
   .refine((data) => Object.keys(data).length > 0, { message: "Provide at least one field to update" });
 export type UpdateApplicationInput = z.infer<typeof UpdateApplicationInputSchema>;
 
+/** A GET form submits untouched fields as "", which should mean "no filter". */
+const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
+
+/** `YYYY-MM-DD` that is a real calendar day (rejects 2026-02-31). */
+const DateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => new Date(`${value}T00:00:00.000Z`).toISOString().startsWith(value), { message: "Invalid date" });
+
+/**
+ * Query of GET /applications, also used to parse the board page's URL
+ * search params. Filters combine with AND; omitting all of them lists every
+ * application. `from`/`to` are inclusive UTC days matched against
+ * `appliedAt`, falling back to `createdAt` (same rule as the weekly stats).
+ */
+export const ApplicationListQuerySchema = z
+  .object({
+    /** Case-insensitive substring of the position or the company name. */
+    q: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
+    // A repeated query key arrives as an array, a single one as a string.
+    status: z.preprocess(
+      (value) => (value === undefined || Array.isArray(value) ? value : [value]),
+      z.array(ApplicationStatusSchema).min(1).optional(),
+    ),
+    /** Exact tech stack entry (case-sensitive). */
+    tech: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(50).optional()),
+    from: z.preprocess(emptyToUndefined, DateOnlySchema.optional()),
+    to: z.preprocess(emptyToUndefined, DateOnlySchema.optional()),
+  })
+  .refine((query) => !query.from || !query.to || query.from <= query.to, {
+    message: "`from` must not be after `to`",
+    path: ["to"],
+  });
+export type ApplicationListQuery = z.infer<typeof ApplicationListQuerySchema>;
+
+/** Response of GET /applications/tech-stack: distinct entries, sorted. */
+export const TechStackOptionsSchema = z.array(z.string());
+
 const RateSchema = z.number().min(0).max(1).nullable();
 
 /**
