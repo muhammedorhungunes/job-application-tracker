@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import {
+  ApplicationListQuerySchema,
   CreateApplicationInputSchema,
   CreateNoteInputSchema,
   UpdateApplicationInputSchema,
   type Activity,
   type Application,
+  type ApplicationListQuery,
   type ApplicationStats,
   type CreateApplicationInput,
   type CreateNoteInput,
@@ -22,8 +24,17 @@ export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Get()
-  async findAll(@CurrentUser() user: AccessTokenPayload): Promise<Application[]> {
-    return this.applicationsService.findAllForUser(user.sub);
+  async findAll(
+    @Query(new ZodValidationPipe(ApplicationListQuerySchema)) query: ApplicationListQuery,
+    @CurrentUser() user: AccessTokenPayload,
+  ): Promise<Application[]> {
+    return this.applicationsService.findAllForUser(user.sub, query);
+  }
+
+  // Declared before @Get(":id") for the same reason as "stats".
+  @Get("tech-stack")
+  async techStack(@CurrentUser() user: AccessTokenPayload): Promise<string[]> {
+    return this.applicationsService.getTechStackOptions(user.sub);
   }
 
   // Declared before @Get(":id") so "stats" isn't captured as an id.

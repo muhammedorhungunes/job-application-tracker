@@ -44,6 +44,7 @@ describe("ApplicationsService", () => {
           provide: ApplicationsRepository,
           useValue: {
             findManyByUserId: jest.fn(),
+            findTechStacksByUserId: jest.fn(),
             createApplication: jest.fn(),
             findCompanyByName: jest.fn(),
             createCompany: jest.fn(),
@@ -103,7 +104,49 @@ describe("ApplicationsService", () => {
 
       await applicationsService.findAllForUser("user-1");
 
-      expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith("user-1");
+      expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith("user-1", {
+        search: undefined,
+        statuses: undefined,
+        tech: undefined,
+        dateFrom: undefined,
+        dateBefore: undefined,
+      });
+    });
+
+    it("passes search, statuses and tech through unchanged", async () => {
+      applicationsRepository.findManyByUserId.mockResolvedValue([]);
+
+      await applicationsService.findAllForUser("user-1", { q: "acme", status: ["APPLIED", "OFFER"], tech: "React" });
+
+      expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ search: "acme", statuses: ["APPLIED", "OFFER"], tech: "React" }),
+      );
+    });
+
+    it("turns from/to days into a UTC range that includes the whole `to` day", async () => {
+      applicationsRepository.findManyByUserId.mockResolvedValue([]);
+
+      await applicationsService.findAllForUser("user-1", { from: "2026-11-01", to: "2026-11-30" });
+
+      expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({
+          dateFrom: new Date("2026-11-01T00:00:00.000Z"),
+          dateBefore: new Date("2026-12-01T00:00:00.000Z"),
+        }),
+      );
+    });
+
+    it("leaves the other bound open when only one date is given", async () => {
+      applicationsRepository.findManyByUserId.mockResolvedValue([]);
+
+      await applicationsService.findAllForUser("user-1", { to: "2026-12-31" });
+
+      expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ dateFrom: undefined, dateBefore: new Date("2027-01-01T00:00:00.000Z") }),
+      );
     });
 
     it("maps db rows into the API shape, serializing dates and the embedded company", async () => {
@@ -134,6 +177,21 @@ describe("ApplicationsService", () => {
       const [result] = await applicationsService.findAllForUser("user-1");
 
       expect(result.appliedAt).toBeNull();
+    });
+  });
+
+  describe("getTechStackOptions", () => {
+    it("returns distinct entries sorted case-insensitively", async () => {
+      applicationsRepository.findTechStacksByUserId.mockResolvedValue([
+        { techStack: ["TypeScript", "react"] },
+        { techStack: [] },
+        { techStack: ["Go", "TypeScript", "React"] },
+      ]);
+
+      const options = await applicationsService.getTechStackOptions("user-1");
+
+      expect(applicationsRepository.findTechStacksByUserId).toHaveBeenCalledWith("user-1");
+      expect(options).toEqual(["Go", "react", "React", "TypeScript"]);
     });
   });
 

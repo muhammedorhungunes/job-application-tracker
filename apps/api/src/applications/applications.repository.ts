@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma, type Company } from "@prisma/client";
+import { Prisma, type ApplicationStatus, type Company } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { StatsRow } from "./application-stats";
 
@@ -19,17 +19,31 @@ const activityFields = {
 
 export type ActivityRow = Prisma.ActivityGetPayload<{ select: typeof activityFields }>;
 
+/** List filters, already normalised by the service. Every field is optional and they combine with AND. */
+export type ApplicationListFilter = {
+  search?: string;
+  statuses?: ApplicationStatus[];
+  tech?: string;
+  /** Inclusive lower / exclusive upper bound on appliedAt, falling back to createdAt. */
+  dateFrom?: Date;
+  dateBefore?: Date;
+};
+
 /** The only place in the applications module that touches Prisma directly. */
 @Injectable()
 export class ApplicationsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findManyByUserId(userId: string): Promise<ApplicationWithCompany[]> {
+  findManyByUserId(userId: string, filter: ApplicationListFilter = {}): Promise<ApplicationWithCompany[]> {
     return this.prisma.client.application.findMany({
-      where: { userId },
+      where: { userId, ...toWhere(filter) },
       orderBy: { createdAt: "desc" },
       include: withCompany,
     });
+  }
+
+  findTechStacksByUserId(userId: string): Promise<{ techStack: string[] }[]> {
+    return this.prisma.client.application.findMany({ where: { userId }, select: { techStack: true } });
   }
 
   /** Only the columns the stats calculation needs; soft-deleted rows are filtered by the extension. */
@@ -127,4 +141,24 @@ export class ApplicationsRepository {
   createCompany(name: string): Promise<Company> {
     return this.prisma.client.company.create({ data: { name } });
   }
+}
+
+function toWhere(filter: ApplicationListFilter): Prisma.ApplicationWhereInput {
+  // Search and date range are both ORs, so each goes in its own AND entry.
+  const and: Prisma.ApplicationWhereInput[] = [];
+  if (filter.search) {
+    // Prisma passes `contains` to ILIKE without escaping, so "%" or "_" would match anything.
+    const escaped = filter.search.replace(/[\\%_]/g, "\\$&");
+    const contains = { contains: escaped, mode: "insensitive" } as const;
+    and.push({ OR: [{ position: contains }, { company: { name: contains } }] });
+  }
+  if (filter.dateFrom || filter.dateBefore) {
+    const range = { gte: filter.dateFrom, lt: filter.dateBefore };
+    and.push({ OR: [{ appliedAt: range }, { appliedAt: null, createdAt: range }] });
+  }
+  return {
+    ...(filter.statuses ? { status: { in: filter.statuses } } : {}),
+    ...(filter.tech ? { techStack: { has: filter.tech } } : {}),
+    ...(and.length > 0 ? { AND: and } : {}),
+  };
 }

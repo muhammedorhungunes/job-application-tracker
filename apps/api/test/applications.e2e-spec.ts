@@ -297,4 +297,101 @@ describe("Applications (e2e)", () => {
         .expect(404);
     });
   });
+
+  describe("filters and tech stack options", () => {
+    // A fresh user so the owner's applications from other tests don't leak in.
+    let cookie: string;
+    const tag = randomUUID().slice(0, 8);
+    const ids: Record<string, string> = {};
+
+    async function create(key: string, body: Record<string, unknown>): Promise<void> {
+      const res = await request(app.getHttpServer())
+        .post("/applications")
+        .set("Cookie", [cookie])
+        .send({ position: "Engineer", companyName: `Co ${tag} ${key}`, ...body })
+        .expect(201);
+      ids[key] = res.body.id;
+    }
+
+    async function list(query: string): Promise<string[]> {
+      const res = await request(app.getHttpServer()).get(`/applications?${query}`).set("Cookie", [cookie]).expect(200);
+      return (res.body as { id: string }[]).map((a) => a.id).sort();
+    }
+
+    const pick = (...keys: string[]) => keys.map((key) => ids[key]!).sort();
+
+    beforeAll(async () => {
+      cookie = await registerAndGetAccessCookie();
+      await create("frontend", {
+        position: "Frontend Developer",
+        companyName: `Globex ${tag}`,
+        techStack: ["React", "TypeScript"],
+        appliedAt: "2026-09-15T10:00:00.000Z",
+      });
+      await create("backend", {
+        position: "Backend Engineer",
+        status: "INTERVIEWING",
+        techStack: ["Go"],
+        appliedAt: "2026-10-31T23:30:00.000Z",
+      });
+      // No appliedAt: the date filter falls back to createdAt (today).
+      await create("undated", { position: "Platform Engineer", status: "OFFER", techStack: ["react"] });
+    });
+
+    it("lists everything without filters", async () => {
+      expect(await list("")).toEqual(pick("frontend", "backend", "undated"));
+    });
+
+    it("searches position and company name case-insensitively", async () => {
+      expect(await list("q=frontend")).toEqual(pick("frontend"));
+      expect(await list(`q=GLOBEX%20${tag}`)).toEqual(pick("frontend"));
+      expect(await list("q=engineer")).toEqual(pick("backend", "undated"));
+    });
+
+    it("treats LIKE wildcards in the search literally", async () => {
+      expect(await list("q=%25")).toEqual([]);
+      expect(await list("q=_")).toEqual([]);
+    });
+
+    it("filters by one or more statuses", async () => {
+      expect(await list("status=OFFER")).toEqual(pick("undated"));
+      expect(await list("status=APPLIED&status=INTERVIEWING")).toEqual(pick("frontend", "backend"));
+    });
+
+    it("filters by an exact tech stack entry", async () => {
+      expect(await list("tech=React")).toEqual(pick("frontend"));
+      expect(await list("tech=react")).toEqual(pick("undated"));
+    });
+
+    it("filters by inclusive UTC days, falling back to createdAt", async () => {
+      expect(await list("from=2026-09-01&to=2026-10-31")).toEqual(pick("frontend", "backend"));
+      expect(await list("from=2026-11-01&to=2026-11-01")).toEqual([]);
+      const today = new Date().toISOString().slice(0, 10);
+      expect(await list(`from=${today}`)).toEqual(pick("undated"));
+    });
+
+    it("combines filters with AND and ignores empty form fields", async () => {
+      expect(await list("q=engineer&status=OFFER&tech=&from=&to=")).toEqual(pick("undated"));
+    });
+
+    it("rejects invalid filters", async () => {
+      const server = app.getHttpServer();
+      for (const query of ["status=NOPE", "from=2026-02-31", "from=2026-11-02&to=2026-11-01"]) {
+        await request(server).get(`/applications?${query}`).set("Cookie", [cookie]).expect(400);
+      }
+    });
+
+    it("doesn't return other users' applications", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/applications?q=${tag}`)
+        .set("Cookie", [otherUserCookie])
+        .expect(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it("returns distinct tech stack entries for the user only", async () => {
+      const res = await request(app.getHttpServer()).get("/applications/tech-stack").set("Cookie", [cookie]).expect(200);
+      expect(res.body).toEqual(["Go", "react", "React", "TypeScript"]);
+    });
+  });
 });

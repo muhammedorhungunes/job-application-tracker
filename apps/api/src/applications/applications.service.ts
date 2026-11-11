@@ -3,6 +3,7 @@ import type { ApplicationStatus, Company, Prisma } from "@prisma/client";
 import type {
   Activity,
   Application,
+  ApplicationListQuery,
   ApplicationStats,
   CreateApplicationInput,
   CreateNoteInput,
@@ -10,11 +11,29 @@ import type {
 } from "@job-tracker/types";
 import { AppConfigService } from "../config/app-config.service";
 import { computeApplicationStats } from "./application-stats";
-import { ApplicationsRepository, type ActivityRow, type ApplicationWithCompany } from "./applications.repository";
+import {
+  ApplicationsRepository,
+  type ActivityRow,
+  type ApplicationListFilter,
+  type ApplicationWithCompany,
+} from "./applications.repository";
 
 /** "INTERVIEWING" -> "Interviewing", for activity descriptions. */
 function statusLabel(status: ApplicationStatus): string {
   return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Query dates are whole UTC days and `to` is inclusive, so the upper bound is the start of the next day. */
+function toListFilter(query: ApplicationListQuery): ApplicationListFilter {
+  return {
+    search: query.q,
+    statuses: query.status,
+    tech: query.tech,
+    dateFrom: query.from ? new Date(`${query.from}T00:00:00.000Z`) : undefined,
+    dateBefore: query.to ? new Date(new Date(`${query.to}T00:00:00.000Z`).getTime() + DAY_MS) : undefined,
+  };
 }
 
 @Injectable()
@@ -29,9 +48,17 @@ export class ApplicationsService {
     return computeApplicationStats(rows, { now, staleDays: this.config.reminderStaleDays });
   }
 
-  async findAllForUser(userId: string): Promise<Application[]> {
-    const rows = await this.applicationsRepository.findManyByUserId(userId);
+  async findAllForUser(userId: string, query: ApplicationListQuery = {}): Promise<Application[]> {
+    const rows = await this.applicationsRepository.findManyByUserId(userId, toListFilter(query));
     return rows.map(this.toApplication);
+  }
+
+  /** Distinct tech stack entries across the user's applications, for the filter dropdown. */
+  async getTechStackOptions(userId: string): Promise<string[]> {
+    const rows = await this.applicationsRepository.findTechStacksByUserId(userId);
+    const unique = new Set(rows.flatMap((row) => row.techStack));
+    // ICU collation: case-insensitive order, lowercase first on ties ("react" before "React").
+    return [...unique].sort((a, b) => a.localeCompare(b, "en"));
   }
 
   async findOneForUser(userId: string, applicationId: string): Promise<Application> {

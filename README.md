@@ -127,6 +127,14 @@ need no queue bookkeeping. `Interview.remindedForScheduledAt` records which
 time was reminded about; a reschedule makes it differ, so the new time is
 reminded again.
 
+**Board filters live in the URL.** Search, status, tech and date filters
+are query params on `/applications`, read by the server component and passed
+through to `GET /applications`, so a filtered board survives a refresh and can
+be bookmarked. The filter bar is a plain `<form method="get">`, so it needs no
+client JavaScript. Both sides parse the params with the same zod schema; the
+page drops an invalid field instead of failing. Prisma doesn't escape `%` or
+`_` in `contains`, so the repository escapes them itself.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
@@ -140,5 +148,7 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
   e-mails are shown in `REMINDER_TZ` (Europe/Istanbul), since the server
   doesn't know each user's zone. Fine for a single user; a per-user zone
   setting would be needed for more.
+- **Tech filter is case-sensitive.** Tech stack entries are stored as typed,
+  so "React" and "react" are separate filter options.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new
   signups paused (see the roadmap).
