@@ -118,6 +118,15 @@ merged. The deploy stays the one open Phase 1 item.
     applications are left out (same rule as reminders, now shared as
     `ClosedApplicationStatusValues`). The applications page shows them above
     the board when there are any. No schema change, no new libraries.
+- **Search and filters**
+  - **Status (2026-11-11):** done on `feat/application-filters`.
+    `GET /applications` takes `q` (case-insensitive, position or company),
+    repeated `status`, `tech` (exact entry) and inclusive UTC `from` / `to`
+    days on `appliedAt` falling back to `createdAt`; all combine with AND.
+    `GET /applications/tech-stack` lists the user's distinct tech entries for
+    the dropdown. The board's filter bar is a server-rendered GET form, so
+    filters live in the URL; invalid params are dropped. Upcoming interviews
+    aren't filtered. No schema change, no new libraries.
 
 ## Out of scope until explicitly requested
 
