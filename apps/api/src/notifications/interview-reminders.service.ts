@@ -2,6 +2,7 @@ import { InjectQueue } from "@nestjs/bullmq";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { Queue } from "bullmq";
 import { AppConfigService } from "../config/app-config.service";
+import { effectiveTimeZone } from "../settings/effective-settings";
 import { EMAIL_SENDER, type EmailSender } from "./email/email-sender";
 import {
   REMINDERS_QUEUE,
@@ -68,7 +69,7 @@ export class InterviewRemindersService {
       scheduledAt: interview.scheduledAt,
       notes: interview.notes,
       applicationUrl: `${origin}/applications/${encodeURIComponent(application.id)}`,
-      timeZone: this.config.reminderTz,
+      timeZone: effectiveTimeZone(application.user.timeZone, this.config.reminderTz),
     });
 
     const { id } = await this.emailSender.send({

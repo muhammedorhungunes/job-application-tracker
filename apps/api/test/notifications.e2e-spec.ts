@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
 import { ANTHROPIC_CLIENT } from "../src/ai/ai.client";
+import { AppConfigService } from "../src/config/app-config.service";
 import { EMAIL_SENDER, type EmailMessage } from "../src/notifications/email/email-sender";
 import { InterviewRemindersService } from "../src/notifications/interview-reminders.service";
 import { REMINDERS_QUEUE, SEND_DIGEST_JOB } from "../src/notifications/notifications.constants";
@@ -234,6 +235,117 @@ describe("Reminder digests (e2e)", () => {
         `interview-reminder:${interviewId}:${first.toISOString()}`,
         `interview-reminder:${interviewId}:${moved}`,
       ]);
+    });
+  });
+
+  describe("per-user settings", () => {
+    // A separate user so turning reminders off doesn't affect the tests above.
+    let userCookie: string;
+    let userEmail: string;
+    let settingsUserId: string;
+    const sentTo = (): EmailMessage[] => send.mock.calls.map(([m]) => m).filter((m) => m.to === userEmail);
+
+    async function createStale(position: string): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post("/applications")
+        .set("Cookie", [userCookie])
+        .send({ companyName: `Co ${position}`, position, status: "INTERVIEWING" })
+        .expect(201);
+      await prisma.client.application.update({
+        where: { id: res.body.id },
+        data: { updatedAt: new Date(Date.now() - 10 * DAY_MS) },
+      });
+      return res.body.id as string;
+    }
+
+    const patchSettings = (body: object) =>
+      request(app.getHttpServer()).patch("/settings").set("Cookie", [userCookie]).send(body).expect(200);
+
+    /** The next moment at or after now whose hour in UTC is `hour`, on the hour. */
+    function nextUtcHour(hour: number): Date {
+      const at = new Date();
+      at.setUTCMinutes(0, 0, 0);
+      while (at.getUTCHours() !== hour || at.getTime() < Date.now() - HOUR_MS) {
+        at.setTime(at.getTime() + HOUR_MS);
+      }
+      return at;
+    }
+
+    beforeAll(async () => {
+      userEmail = `${randomUUID()}@test.local`;
+      const res = await request(app.getHttpServer())
+        .post("/auth/register")
+        .send({ email: userEmail, password: "password123", name: "Settings Reminder User" })
+        .expect(201);
+      userCookie = pickCookie(res.headers["set-cookie"], "access_token");
+      settingsUserId = (await prisma.client.user.findFirstOrThrow({ where: { email: userEmail } })).id;
+      await createStale("Settings stale");
+      await patchSettings({ timeZone: "UTC" });
+    });
+
+    it("queues the digest only at the user's local reminder hour", async () => {
+      const config = app.get(AppConfigService);
+      const atHour = nextUtcHour(config.reminderHour);
+
+      await reminders.enqueueDigests(new Date(atHour.getTime() - HOUR_MS));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(sentTo()).toHaveLength(0);
+
+      await reminders.enqueueDigests(atHour);
+      for (let i = 0; i < 50 && sentTo().length === 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(sentTo()).toHaveLength(1);
+      expect(sentTo()[0]!.idempotencyKey).toBe(
+        `reminder-digest:${settingsUserId}:${atHour.toISOString().slice(0, 10)}`,
+      );
+    });
+
+    it("skips the digest when the user turned it off or raised the threshold", async () => {
+      // Update the application so it's due again, then let it go quiet.
+      const applicationId = await createStale("Settings second");
+      await prisma.client.applicationReminder.deleteMany({ where: { application: { userId: settingsUserId } } });
+      await prisma.client.application.update({
+        where: { id: applicationId },
+        data: { updatedAt: new Date(Date.now() - 10 * DAY_MS) },
+      });
+
+      await patchSettings({ staleDays: 30 });
+      await expect(reminders.sendDigest({ userId: settingsUserId, digestDate: "2026-11-20" }, new Date())).resolves.toEqual({
+        sent: false,
+      });
+
+      await patchSettings({ staleDays: null, staleDigestEnabled: false });
+      await expect(reminders.sendDigest({ userId: settingsUserId, digestDate: "2026-11-21" }, new Date())).resolves.toEqual({
+        sent: false,
+      });
+      expect(sentTo()).toHaveLength(0);
+
+      await patchSettings({ staleDigestEnabled: true });
+      await expect(reminders.sendDigest({ userId: settingsUserId, digestDate: "2026-11-22" }, new Date())).resolves.toEqual({
+        sent: true,
+      });
+    });
+
+    it("shows interview times in the user's zone and stops when reminders are off", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/applications")
+        .set("Cookie", [userCookie])
+        .send({ companyName: "Co Zoned", position: "Zoned interview", status: "INTERVIEWING" })
+        .expect(201);
+      const interview = await request(app.getHttpServer())
+        .post(`/applications/${res.body.id}/interviews`)
+        .set("Cookie", [userCookie])
+        .send({ kind: "PHONE", scheduledAt: new Date(Date.now() + 5 * HOUR_MS).toISOString() })
+        .expect(201);
+      const job = { interviewId: interview.body.id as string, scheduledAt: interview.body.scheduledAt as string };
+
+      await patchSettings({ interviewRemindersEnabled: false });
+      await expect(interviewReminders.send(job, new Date())).resolves.toEqual({ sent: false });
+
+      await patchSettings({ interviewRemindersEnabled: true, timeZone: "America/New_York" });
+      await expect(interviewReminders.send(job, new Date())).resolves.toEqual({ sent: true });
+      expect(sentTo().at(-1)!.subject).toMatch(/\(America\/New_York\)$/);
     });
   });
 });

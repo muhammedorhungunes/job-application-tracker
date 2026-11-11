@@ -19,7 +19,7 @@ function due(overrides: Partial<DueInterview> = {}): DueInterview {
       id: "app-1",
       position: "Backend Engineer",
       company: { name: "Acme" },
-      user: { email: "me@example.com", name: "Orhun" },
+      user: { email: "me@example.com", name: "Orhun", timeZone: null },
     },
     ...overrides,
   };
@@ -94,7 +94,21 @@ describe("InterviewRemindersService", () => {
       expect(repository.markReminded).toHaveBeenCalledWith("int-1", scheduledAt);
     });
 
-    it("does nothing when the interview is no longer due (cancelled, closed, already reminded)", async () => {
+    it("shows the time in the user's own zone when they set one", async () => {
+      const interview = due();
+      interview.application.user.timeZone = "America/New_York";
+      repository.findDue.mockResolvedValue([interview]);
+
+      await service.send(job, now);
+
+      expect(emailSender.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: "Reminder: Technical interview with Acme on Wed, Nov 11 at 06:00 (America/New_York)",
+        }),
+      );
+    });
+
+    it("does nothing when the interview is no longer due (cancelled, closed, already reminded, reminders off)", async () => {
       repository.findDue.mockResolvedValue([]);
 
       expect(await service.send(job, now)).toEqual({ sent: false });

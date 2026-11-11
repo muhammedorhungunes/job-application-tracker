@@ -75,6 +75,12 @@ describe("effectiveReminderSettings", () => {
     expect(effectiveReminderSettings({ timeZone: null, staleDays: null }, defaults)).toEqual(defaults);
   });
 
+  it("ignores a stored zone that Intl no longer knows", () => {
+    expect(effectiveReminderSettings({ timeZone: "Gone/Zone", staleDays: null }, defaults).timeZone).toBe(
+      "Europe/Istanbul",
+    );
+  });
+
   it("prefers the user's own values", () => {
     expect(effectiveReminderSettings({ timeZone: "Asia/Tokyo", staleDays: 14 }, defaults)).toEqual({
       timeZone: "Asia/Tokyo",
