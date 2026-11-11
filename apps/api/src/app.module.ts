@@ -8,6 +8,7 @@ import { ApplicationsModule } from "./applications/applications.module";
 import { InterviewsModule } from "./interviews/interviews.module";
 import { AiModule } from "./ai/ai.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { SettingsModule } from "./settings/settings.module";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 
@@ -24,6 +25,7 @@ import { AppService } from "./app.service";
     InterviewsModule,
     AiModule,
     NotificationsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

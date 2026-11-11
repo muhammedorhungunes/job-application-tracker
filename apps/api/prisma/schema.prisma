@@ -52,6 +52,14 @@ model User {
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
 
+  // Reminder settings. A null override means "use the env default"
+  // (REMINDER_TZ / REMINDER_STALE_DAYS), so changing the env still moves
+  // every user who never picked a value.
+  timeZone                  String?
+  staleDigestEnabled        Boolean  @default(true)
+  staleDays                 Int?
+  interviewRemindersEnabled Boolean  @default(true)
+
   applications     Application[]
   refreshTokens    RefreshToken[]
   jobPostingParses JobPostingParse[]
