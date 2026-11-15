@@ -162,6 +162,14 @@ Cells starting with `= + - @` get a leading `'` against spreadsheet formula
 injection, and import strips it again. The CSV reader/writer is a small
 hand-written one in `applications/csv/`, not a library.
 
+**Delete means archive.** Nothing is hard-deleted, so the UI calls it
+"Archive": `DELETE /applications/:id` sets `deletedAt` and writes an
+`ARCHIVED` history entry, `GET /applications/archived` lists them and
+`POST /applications/:id/restore` brings one back (with a `RESTORED` entry and
+a fresh `updatedAt`, so the stale digest doesn't fire right away). The
+soft-delete extension adds `deletedAt: null` to every top-level read unless
+the query sets `deletedAt` itself; `undefined` still gets the default.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.

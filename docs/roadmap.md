@@ -150,6 +150,14 @@ merged. The deploy stays the one open Phase 1 item.
     cells are prefixed with `'` on export and restored on import. JSON and
     server action body limits raised to 2 MB. No schema change, no new
     libraries (hand-written RFC 4180 parser).
+- **Archive and restore**
+  - **Status (2026-11-16):** done on `feat/archive-restore`. The detail
+    page's "Delete" is now "Archive" (still `DELETE /applications/:id`, a soft
+    delete) and writes an `ARCHIVED` history entry. A new "Archived" page
+    (`GET /applications/archived`) lists them with a Restore button
+    (`POST /applications/:id/restore`, writes `RESTORED`). New `ActivityType`
+    values via migration. The soft-delete extension now keeps an explicit
+    top-level `deletedAt` filter. No new libraries.
 
 ## Out of scope until explicitly requested
 
