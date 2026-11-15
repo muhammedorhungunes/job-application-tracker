@@ -99,16 +99,29 @@ export async function updateApplicationStatus(id: string, status: ApplicationSta
   return {};
 }
 
-export async function deleteApplication(id: string): Promise<void> {
+export async function archiveApplication(id: string): Promise<void> {
   try {
     await serverApiFetch(applicationPath(id), z.undefined(), { method: "DELETE" });
   } catch (error) {
-    // Already gone (e.g. deleted in another tab) — same end result.
+    // Already archived (e.g. in another tab) — same end result.
     if (!(error instanceof ApiError && error.status === 404)) throw error;
   }
 
   revalidatePath("/applications");
+  revalidatePath("/applications/archived");
   redirect("/applications");
+}
+
+export async function restoreApplication(id: string): Promise<void> {
+  try {
+    await serverApiFetch(`${applicationPath(id)}/restore`, ApplicationSchema, { method: "POST" });
+  } catch (error) {
+    // Already restored (e.g. in another tab) — same end result.
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
+
+  revalidatePath("/applications");
+  revalidatePath("/applications/archived");
 }
 
 function formValues(formData: FormData): Record<string, string> {

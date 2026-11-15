@@ -13,6 +13,9 @@ export function AppHeader() {
         <Link href="/applications/stats" prefetch={false} className={buttonVariants({ variant: "ghost", size: "sm" })}>
           Stats
         </Link>
+        <Link href="/applications/archived" prefetch={false} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          Archived
+        </Link>
         <Link href="/settings" prefetch={false} className={buttonVariants({ variant: "ghost", size: "sm" })}>
           Settings
         </Link>
