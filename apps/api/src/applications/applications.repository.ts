@@ -152,10 +152,39 @@ export class ApplicationsRepository {
   }
 
   // Same bare-id caveat as updateApplication: ownership is the caller's job.
-  // `.delete()` is soft — the Prisma extension in prisma/soft-delete.extension.ts
-  // rewrites it into an update that sets `deletedAt`, per CLAUDE.md (no hard deletes).
-  deleteApplication(id: string): Promise<Prisma.ApplicationGetPayload<Record<string, never>>> {
-    return this.prisma.client.application.delete({ where: { id } });
+  // Soft delete (CLAUDE.md: no hard deletes) written as an update rather than
+  // the extension's delete() so the history entry lands in the same write.
+  async archiveApplication(id: string): Promise<void> {
+    await this.prisma.client.application.update({
+      where: { id },
+      data: { deletedAt: new Date(), activities: { create: { type: "ARCHIVED", description: "Archived" } } },
+    });
+  }
+
+  /** Newest archive first. An explicit deletedAt filter overrides the extension's default. */
+  findArchivedByUserId(userId: string): Promise<ApplicationWithCompany[]> {
+    return this.prisma.client.application.findMany({
+      where: { userId, deletedAt: { not: null } },
+      orderBy: [{ deletedAt: "desc" }, { id: "desc" }],
+      include: withCompany,
+    });
+  }
+
+  findArchivedByIdForUser(id: string, userId: string): Promise<{ id: string } | null> {
+    return this.prisma.client.application.findFirst({
+      where: { id, userId, deletedAt: { not: null } },
+      select: { id: true },
+    });
+  }
+
+  // Bare id: ownership is the caller's job. Bumps updatedAt, so the stale
+  // reminder treats a restore as activity rather than nagging right away.
+  restoreApplication(id: string): Promise<ApplicationWithCompany> {
+    return this.prisma.client.application.update({
+      where: { id },
+      data: { deletedAt: null, activities: { create: { type: "RESTORED", description: "Restored" } } },
+      include: withCompany,
+    });
   }
 
   findCompanyByName(name: string): Promise<Company | null> {
