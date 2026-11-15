@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiFetch, apiFetchWithCookies, ApiError } from "./api-client";
+import { apiFetch, apiFetchText, apiFetchWithCookies, ApiError } from "./api-client";
 
 describe("apiFetch", () => {
   afterEach(() => {
@@ -55,5 +55,23 @@ describe("apiFetch", () => {
       "access_token=abc; Max-Age=900; Path=/; HttpOnly",
       "refresh_token=def; Max-Age=2592000; Path=/auth; HttpOnly",
     ]);
+  });
+});
+
+describe("apiFetchText", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the raw body", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("\uFEFFposition,company\r\n", { status: 200 })));
+
+    await expect(apiFetchText("/applications/export")).resolves.toBe("\uFEFFposition,company\r\n");
+  });
+
+  it("throws an ApiError on a non-2xx response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Unauthorized", { status: 401 })));
+
+    await expect(apiFetchText("/applications/export")).rejects.toThrow(ApiError);
   });
 });

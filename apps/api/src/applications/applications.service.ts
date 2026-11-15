@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { ApplicationStatus, Company, Prisma } from "@prisma/client";
 import type {
   Activity,
   Application,
+  ApplicationImportError,
+  ApplicationImportResult,
   ApplicationListQuery,
   ApplicationStats,
   CreateApplicationInput,
@@ -12,6 +14,7 @@ import type {
 import { AppConfigService } from "../config/app-config.service";
 import { effectiveReminderSettings } from "../settings/effective-settings";
 import { computeApplicationStats } from "./application-stats";
+import { applicationsToCsv, csvToImportRows } from "./csv/application-csv";
 import {
   ApplicationsRepository,
   type ActivityRow,
@@ -25,6 +28,14 @@ function statusLabel(status: ApplicationStatus): string {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * What makes two applications "the same" for CSV import: company and
+ * position ignoring case, plus the UTC day applied (or no date at all).
+ */
+function duplicateKey(companyName: string, position: string, appliedAt: string | null): string {
+  return JSON.stringify([companyName.trim().toLowerCase(), position.trim().toLowerCase(), appliedAt?.slice(0, 10) ?? null]);
+}
 
 /** Query dates are whole UTC days and `to` is inclusive, so the upper bound is the start of the next day. */
 function toListFilter(query: ApplicationListQuery): ApplicationListFilter {
@@ -102,10 +113,70 @@ export class ApplicationsService {
 
   async create(userId: string, input: CreateApplicationInput): Promise<Application> {
     const company = await this.getOrCreateCompany(input.companyName);
+    const row = await this.applicationsRepository.createApplication(this.buildCreateData(userId, company.id, input, "Added"));
+    return this.toApplication(row);
+  }
+
+  /** Same filters as the board, so "Export CSV" downloads what the user is looking at. */
+  async exportCsv(userId: string, query: ApplicationListQuery = {}): Promise<string> {
+    return applicationsToCsv(await this.findAllForUser(userId, query));
+  }
+
+  /**
+   * All-or-nothing: any invalid row rejects the whole file, so a half-imported
+   * file never has to be cleaned up. Rows matching an application the user
+   * already has (or an earlier row of the same file) are skipped, so
+   * re-uploading a file or an export doesn't duplicate anything.
+   *
+   * Runs inside the request rather than as a BullMQ job: it's at most
+   * CSV_IMPORT_MAX_ROWS inserts in one transaction, not a slow external call.
+   */
+  async importCsv(userId: string, csv: string): Promise<ApplicationImportResult> {
+    const parsed = csvToImportRows(csv);
+    if (!parsed.ok) {
+      const body: ApplicationImportError = { rows: parsed.errors };
+      throw new BadRequestException(body);
+    }
+
+    const existing = await this.applicationsRepository.findDuplicateKeyFieldsByUserId(userId);
+    const seen = new Set(
+      existing.map((row) => duplicateKey(row.company.name, row.position, row.appliedAt?.toISOString() ?? null)),
+    );
+    const fresh = parsed.rows.filter(({ input }) => {
+      const key = duplicateKey(input.companyName, input.position, input.appliedAt ?? null);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // One lookup per distinct company, not per row.
+    const companyIds = new Map<string, string>();
+    const data: Prisma.ApplicationUncheckedCreateInput[] = [];
+    for (const { input } of fresh) {
+      const name = input.companyName.toLowerCase();
+      let companyId = companyIds.get(name);
+      if (!companyId) {
+        companyId = (await this.getOrCreateCompany(input.companyName)).id;
+        companyIds.set(name, companyId);
+      }
+      data.push(this.buildCreateData(userId, companyId, input, "Imported"));
+    }
+
+    const imported = data.length > 0 ? await this.applicationsRepository.createApplications(data) : 0;
+    return { imported, skippedDuplicates: parsed.rows.length - fresh.length };
+  }
+
+  /** `verb` only changes the first history entry's wording ("Added as Applied" / "Imported as Applied"). */
+  private buildCreateData(
+    userId: string,
+    companyId: string,
+    input: CreateApplicationInput,
+    verb: "Added" | "Imported",
+  ): Prisma.ApplicationUncheckedCreateInput {
     const status = input.status ?? "APPLIED";
-    const row = await this.applicationsRepository.createApplication({
+    return {
       userId,
-      companyId: company.id,
+      companyId,
       position: input.position,
       status,
       source: input.source ?? null,
@@ -116,10 +187,9 @@ export class ApplicationsService {
       // Nested write: the application and its first history entry are
       // created atomically.
       activities: {
-        create: { type: "APPLICATION_CREATED", toStatus: status, description: `Added as ${statusLabel(status)}` },
+        create: { type: "APPLICATION_CREATED", toStatus: status, description: `${verb} as ${statusLabel(status)}` },
       },
-    });
-    return this.toApplication(row);
+    };
   }
 
   async update(userId: string, applicationId: string, input: UpdateApplicationInput): Promise<Application> {

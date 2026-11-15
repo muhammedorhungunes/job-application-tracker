@@ -19,10 +19,7 @@ export class ApiError extends Error {
  * need so the web app can re-issue the API's auth cookies on its own origin
  * (see lib/auth-cookies.ts for why).
  */
-export async function apiFetchWithCookies<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<{ data: T; setCookies: string[] }> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
@@ -36,13 +33,29 @@ export async function apiFetchWithCookies<T>(
     const body = await res.text();
     throw new ApiError(res.status, body || res.statusText);
   }
+  return res;
+}
 
+export async function apiFetchWithCookies<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{ data: T; setCookies: string[] }> {
+  const res = await request(path, init);
   const setCookies = res.headers.getSetCookie();
   if (res.status === 204) {
     return { data: undefined as T, setCookies };
   }
 
   return { data: (await res.json()) as T, setCookies };
+}
+
+/**
+ * For non-JSON responses such as the CSV export. Decoded by hand because
+ * `res.text()` strips a UTF-8 BOM, which Excel needs to read the CSV as UTF-8.
+ */
+export async function apiFetchText(path: string, init?: RequestInit): Promise<string> {
+  const res = await request(path, init);
+  return new TextDecoder("utf-8", { ignoreBOM: true }).decode(await res.arrayBuffer());
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

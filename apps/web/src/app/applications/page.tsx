@@ -28,9 +28,20 @@ export default async function ApplicationsPage({
     <>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Applications</h1>
-        <Link href="/applications/new" prefetch={false} className={buttonVariants()}>
-          New application
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/applications/import" prefetch={false} className={buttonVariants({ variant: "outline" })}>
+            Import CSV
+          </Link>
+          {applications.length > 0 && (
+            // A plain <a>: it's a file download, not a page to navigate to client-side.
+            <a href={`/applications/export${toQueryString(filters)}`} className={buttonVariants({ variant: "outline" })}>
+              Export CSV
+            </a>
+          )}
+          <Link href="/applications/new" prefetch={false} className={buttonVariants()}>
+            New application
+          </Link>
+        </div>
       </div>
 
       <UpcomingInterviews interviews={upcomingInterviews} days={UPCOMING_DAYS} />

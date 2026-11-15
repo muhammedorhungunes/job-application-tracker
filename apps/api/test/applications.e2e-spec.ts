@@ -3,7 +3,7 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import request from "supertest";
-import { ActivitySchema, ApplicationStatsSchema } from "@job-tracker/types";
+import { ActivitySchema, ApplicationImportErrorSchema, ApplicationStatsSchema } from "@job-tracker/types";
 import { AppModule } from "../src/app.module";
 import { pickCookie } from "./helpers";
 
@@ -392,6 +392,94 @@ describe("Applications (e2e)", () => {
     it("returns distinct tech stack entries for the user only", async () => {
       const res = await request(app.getHttpServer()).get("/applications/tech-stack").set("Cookie", [cookie]).expect(200);
       expect(res.body).toEqual(["Go", "react", "React", "TypeScript"]);
+    });
+  });
+
+  describe("CSV import / export", () => {
+    let cookie: string;
+    const company = `CSV Co ${randomUUID()}`;
+    const csv = [
+      "position,company,status,appliedAt,techStack,notes",
+      `Backend Engineer,${company},interviewing,2026-11-02,Go; Rust,"Recruiter said: ""next week"""`,
+      `Frontend Engineer,${company},,,,=1+1`,
+    ].join("\r\n");
+
+    beforeAll(async () => {
+      cookie = await registerAndGetAccessCookie();
+    });
+
+    it("requires an access token", async () => {
+      const server = app.getHttpServer();
+      await request(server).get("/applications/export").expect(401);
+      await request(server).post("/applications/import").send({ csv }).expect(401);
+    });
+
+    it("rejects an invalid file with row errors and saves nothing", async () => {
+      const server = app.getHttpServer();
+      const res = await request(server)
+        .post("/applications/import")
+        .set("Cookie", [cookie])
+        .send({ csv: `${csv}\r\n,${company},MAYBE,,,` })
+        .expect(400);
+      const body = ApplicationImportErrorSchema.parse(res.body);
+      expect(body.rows).toEqual([{ row: 4, messages: expect.arrayContaining(["position: Required"]) }]);
+
+      const list = await request(server).get("/applications").set("Cookie", [cookie]).expect(200);
+      expect(list.body).toEqual([]);
+    });
+
+    it("imports a file, then skips the same rows on a second upload", async () => {
+      const server = app.getHttpServer();
+      const first = await request(server).post("/applications/import").set("Cookie", [cookie]).send({ csv }).expect(200);
+      expect(first.body).toEqual({ imported: 2, skippedDuplicates: 0 });
+
+      const second = await request(server).post("/applications/import").set("Cookie", [cookie]).send({ csv }).expect(200);
+      expect(second.body).toEqual({ imported: 0, skippedDuplicates: 2 });
+
+      const list = await request(server).get("/applications").set("Cookie", [cookie]).expect(200);
+      expect(list.body).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            position: "Backend Engineer",
+            status: "INTERVIEWING",
+            appliedAt: "2026-11-02T00:00:00.000Z",
+            techStack: ["Go", "Rust"],
+            notes: 'Recruiter said: "next week"',
+          }),
+          expect.objectContaining({ position: "Frontend Engineer", status: "APPLIED", notes: "=1+1" }),
+        ]),
+      );
+      const activities = await request(server)
+        .get(`/applications/${list.body[0].id}/activities`)
+        .set("Cookie", [cookie])
+        .expect(200);
+      expect(activities.body[0].description).toMatch(/^Imported as /);
+    });
+
+    it("exports the user's applications, honouring filters, and re-imports as all duplicates", async () => {
+      const server = app.getHttpServer();
+      const res = await request(server).get("/applications/export").set("Cookie", [cookie]).expect(200);
+      expect(res.headers["content-type"]).toMatch(/^text\/csv/);
+      expect(res.headers["content-disposition"]).toMatch(/^attachment; filename="applications-\d{4}-\d{2}-\d{2}\.csv"$/);
+      expect(res.text).toContain("Backend Engineer");
+      expect(res.text).toContain("'=1+1");
+
+      const filtered = await request(server)
+        .get("/applications/export?status=INTERVIEWING")
+        .set("Cookie", [cookie])
+        .expect(200);
+      expect(filtered.text).toContain("Backend Engineer");
+      expect(filtered.text).not.toContain("Frontend Engineer");
+
+      const reimport = await request(server)
+        .post("/applications/import")
+        .set("Cookie", [cookie])
+        .send({ csv: res.text })
+        .expect(200);
+      expect(reimport.body).toEqual({ imported: 0, skippedDuplicates: 2 });
+
+      const other = await request(server).get("/applications/export").set("Cookie", [otherUserCookie]).expect(200);
+      expect(other.text).not.toContain(company);
     });
   });
 });

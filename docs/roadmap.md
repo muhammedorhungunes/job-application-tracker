@@ -136,6 +136,20 @@ merged. The deploy stays the one open Phase 1 item.
     sends at `REMINDER_HOUR` (9) in each user's zone (`REMINDER_CRON` removed);
     interview reminder times use the user's zone; the stats stale count uses
     the user's threshold. No new libraries.
+- **CSV import / export**
+  - **Status (2026-11-15):** done on `feat/csv-import-export`.
+    `GET /applications/export` downloads the user's applications as CSV
+    (UTF-8 with BOM, CRLF), honouring the board's filters; the board's
+    "Export CSV" link goes through a web route handler. `POST /applications/import`
+    takes the file's text (up to 1 000 rows / 1 MB), matches headers by name,
+    validates every row with `CreateApplicationInputSchema` and is
+    all-or-nothing: any invalid row rejects the file with row-numbered errors.
+    Rows matching an existing application (company + position ignoring case,
+    plus applied day) or an earlier row are skipped and counted. Imported
+    applications get an "Imported as <status>" history entry. Formula-like
+    cells are prefixed with `'` on export and restored on import. JSON and
+    server action body limits raised to 2 MB. No schema change, no new
+    libraries (hand-written RFC 4180 parser).
 
 ## Out of scope until explicitly requested
 

@@ -115,6 +115,27 @@ export class ApplicationsRepository {
     return this.prisma.client.application.create({ data, include: withCompany });
   }
 
+  /**
+   * All-or-nothing, for CSV import. Individual creates rather than createMany
+   * because createMany can't write each application's nested history entry.
+   */
+  async createApplications(data: Prisma.ApplicationUncheckedCreateInput[]): Promise<number> {
+    const created = await this.prisma.client.$transaction(
+      data.map((row) => this.prisma.client.application.create({ data: row, select: { id: true } })),
+    );
+    return created.length;
+  }
+
+  /** The fields CSV import compares to skip applications the user already has. */
+  findDuplicateKeyFieldsByUserId(
+    userId: string,
+  ): Promise<{ position: string; appliedAt: Date | null; company: { name: string } }[]> {
+    return this.prisma.client.application.findMany({
+      where: { userId },
+      select: { position: true, appliedAt: true, company: { select: { name: true } } },
+    });
+  }
+
   /** Scoped by userId so one user can never fetch (or, via update, touch) another's application. */
   findByIdForUser(id: string, userId: string): Promise<ApplicationWithCompany | null> {
     return this.prisma.client.application.findFirst({ where: { id, userId }, include: withCompany });
