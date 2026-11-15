@@ -482,4 +482,58 @@ describe("Applications (e2e)", () => {
       expect(other.text).not.toContain(company);
     });
   });
+
+  describe("archive and restore", () => {
+    let cookie: string;
+
+    beforeAll(async () => {
+      cookie = await registerAndGetAccessCookie();
+    });
+
+    it("archives on DELETE, lists it as archived, and restores it with history", async () => {
+      const server = app.getHttpServer();
+      const created = await request(server)
+        .post("/applications")
+        .set("Cookie", [cookie])
+        .send({ position: "Archivist", companyName: `Archive Co ${randomUUID()}` })
+        .expect(201);
+      const id: string = created.body.id;
+
+      await request(server).delete(`/applications/${id}`).set("Cookie", [cookie]).expect(204);
+      expect((await request(server).get("/applications").set("Cookie", [cookie]).expect(200)).body).toEqual([]);
+      await request(server).get(`/applications/${id}`).set("Cookie", [cookie]).expect(404);
+
+      const archived = await request(server).get("/applications/archived").set("Cookie", [cookie]).expect(200);
+      expect(archived.body).toEqual([
+        expect.objectContaining({ id, position: "Archivist", archivedAt: expect.any(String) }),
+      ]);
+
+      // Other users can neither see nor restore it.
+      const other = await request(server).get("/applications/archived").set("Cookie", [otherUserCookie]).expect(200);
+      expect(other.body).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+      await request(server).post(`/applications/${id}/restore`).set("Cookie", [otherUserCookie]).expect(404);
+
+      const restored = await request(server).post(`/applications/${id}/restore`).set("Cookie", [cookie]).expect(200);
+      expect(restored.body).toEqual(expect.objectContaining({ id, position: "Archivist" }));
+      await request(server).post(`/applications/${id}/restore`).set("Cookie", [cookie]).expect(404);
+
+      expect((await request(server).get("/applications/archived").set("Cookie", [cookie]).expect(200)).body).toEqual([]);
+      expect((await request(server).get("/applications").set("Cookie", [cookie]).expect(200)).body).toEqual([
+        expect.objectContaining({ id }),
+      ]);
+
+      const activities = await request(server).get(`/applications/${id}/activities`).set("Cookie", [cookie]).expect(200);
+      expect(activities.body.map((a: { type: string }) => a.type)).toEqual(["RESTORED", "ARCHIVED", "APPLICATION_CREATED"]);
+    });
+
+    it("404s restoring an application that isn't archived", async () => {
+      const server = app.getHttpServer();
+      const created = await request(server)
+        .post("/applications")
+        .set("Cookie", [cookie])
+        .send({ position: "Active", companyName: `Archive Co ${randomUUID()}` })
+        .expect(201);
+      await request(server).post(`/applications/${created.body.id}/restore`).set("Cookie", [cookie]).expect(404);
+    });
+  });
 });

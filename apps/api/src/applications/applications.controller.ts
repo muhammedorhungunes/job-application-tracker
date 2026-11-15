@@ -12,6 +12,7 @@ import {
   type ApplicationImportResult,
   type ApplicationListQuery,
   type ApplicationStats,
+  type ArchivedApplication,
   type CreateApplicationInput,
   type CreateNoteInput,
   type UpdateApplicationInput,
@@ -62,6 +63,12 @@ export class ApplicationsController {
     @CurrentUser() user: AccessTokenPayload,
   ): Promise<ApplicationImportResult> {
     return this.applicationsService.importCsv(user.sub, body.csv);
+  }
+
+  // Declared before @Get(":id") for the same reason as "stats".
+  @Get("archived")
+  async archived(@CurrentUser() user: AccessTokenPayload): Promise<ArchivedApplication[]> {
+    return this.applicationsService.findArchivedForUser(user.sub);
   }
 
   // Declared before @Get(":id") so "stats" isn't captured as an id.
@@ -126,6 +133,13 @@ export class ApplicationsController {
     return this.applicationsService.update(user.sub, id, body);
   }
 
+  @Post(":id/restore")
+  @HttpCode(HttpStatus.OK)
+  async restore(@Param("id") id: string, @CurrentUser() user: AccessTokenPayload): Promise<Application> {
+    return this.applicationsService.restore(user.sub, id);
+  }
+
+  /** Archives (soft-deletes) the application; it can be restored via POST :id/restore. */
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param("id") id: string, @CurrentUser() user: AccessTokenPayload): Promise<void> {

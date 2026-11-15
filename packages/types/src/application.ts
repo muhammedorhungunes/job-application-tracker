@@ -41,6 +41,12 @@ export const ApplicationSchema = z.object({
 });
 export type Application = z.infer<typeof ApplicationSchema>;
 
+/** Response item of GET /applications/archived, newest archive first. */
+export const ArchivedApplicationSchema = ApplicationSchema.extend({
+  archivedAt: z.string().datetime(),
+});
+export type ArchivedApplication = z.infer<typeof ArchivedApplicationSchema>;
+
 export const TechStackSchema = z.array(z.string().trim().min(1).max(50)).max(30);
 
 /**

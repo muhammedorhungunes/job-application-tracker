@@ -7,6 +7,7 @@ import type {
   ApplicationImportResult,
   ApplicationListQuery,
   ApplicationStats,
+  ArchivedApplication,
   CreateApplicationInput,
   CreateNoteInput,
   UpdateApplicationInput,
@@ -243,7 +244,27 @@ export class ApplicationsService {
       throw new NotFoundException("Application not found");
     }
 
-    await this.applicationsRepository.deleteApplication(applicationId);
+    await this.applicationsRepository.archiveApplication(applicationId);
+  }
+
+  /** Archived (soft-deleted) applications, newest archive first. */
+  async findArchivedForUser(userId: string): Promise<ArchivedApplication[]> {
+    const rows = await this.applicationsRepository.findArchivedByUserId(userId);
+    return rows.map((row) => ({
+      ...this.toApplication(row),
+      // Always set: the query only returns rows with deletedAt.
+      archivedAt: (row.deletedAt ?? row.updatedAt).toISOString(),
+    }));
+  }
+
+  async restore(userId: string, applicationId: string): Promise<Application> {
+    const archived = await this.applicationsRepository.findArchivedByIdForUser(applicationId, userId);
+    if (!archived) {
+      // Not archived, not found, or not yours: same response for all three.
+      throw new NotFoundException("Archived application not found");
+    }
+    const row = await this.applicationsRepository.restoreApplication(applicationId);
+    return this.toApplication(row);
   }
 
   /**

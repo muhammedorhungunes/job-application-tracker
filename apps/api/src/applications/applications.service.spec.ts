@@ -52,7 +52,10 @@ describe("ApplicationsService", () => {
             createCompany: jest.fn(),
             findByIdForUser: jest.fn(),
             updateApplication: jest.fn(),
-            deleteApplication: jest.fn(),
+            archiveApplication: jest.fn(),
+            findArchivedByUserId: jest.fn(),
+            findArchivedByIdForUser: jest.fn(),
+            restoreApplication: jest.fn(),
             findStatsRowsByUserId: jest.fn(),
             findUserReminderOverrides: jest.fn().mockResolvedValue({ timeZone: null, staleDays: null }),
             findActivitiesByApplicationId: jest.fn(),
@@ -625,7 +628,7 @@ describe("ApplicationsService", () => {
       applicationsRepository.findByIdForUser.mockResolvedValue(null);
 
       await expect(applicationsService.remove("user-1", "app-1")).rejects.toThrow(NotFoundException);
-      expect(applicationsRepository.deleteApplication).not.toHaveBeenCalled();
+      expect(applicationsRepository.archiveApplication).not.toHaveBeenCalled();
     });
 
     it("looks the application up scoped to the calling user before deleting", async () => {
@@ -634,7 +637,7 @@ describe("ApplicationsService", () => {
       await applicationsService.remove("user-1", "app-1");
 
       expect(applicationsRepository.findByIdForUser).toHaveBeenCalledWith("app-1", "user-1");
-      expect(applicationsRepository.deleteApplication).toHaveBeenCalledWith("app-1");
+      expect(applicationsRepository.archiveApplication).toHaveBeenCalledWith("app-1");
     });
   });
 
@@ -733,6 +736,40 @@ describe("ApplicationsService", () => {
       const result = await applicationsService.importCsv("user-1", "position,company\nA,Acme\n");
       expect(result).toEqual({ imported: 0, skippedDuplicates: 1 });
       expect(applicationsRepository.createApplications).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findArchivedForUser", () => {
+    it("maps rows with their archive time", async () => {
+      const deletedAt = new Date("2026-11-10T12:00:00.000Z");
+      applicationsRepository.findArchivedByUserId.mockResolvedValue([{ ...fakeRow, deletedAt }]);
+
+      const result = await applicationsService.findArchivedForUser("user-1");
+
+      expect(applicationsRepository.findArchivedByUserId).toHaveBeenCalledWith("user-1");
+      expect(result).toEqual([
+        expect.objectContaining({ id: "app-1", company: { id: "company-1", name: "Acme Inc" }, archivedAt: deletedAt.toISOString() }),
+      ]);
+    });
+  });
+
+  describe("restore", () => {
+    it("restores an archived application of the user", async () => {
+      applicationsRepository.findArchivedByIdForUser.mockResolvedValue({ id: "app-1" });
+      applicationsRepository.restoreApplication.mockResolvedValue(fakeRow);
+
+      const result = await applicationsService.restore("user-1", "app-1");
+
+      expect(applicationsRepository.findArchivedByIdForUser).toHaveBeenCalledWith("app-1", "user-1");
+      expect(applicationsRepository.restoreApplication).toHaveBeenCalledWith("app-1");
+      expect(result.id).toBe("app-1");
+    });
+
+    it("throws NotFoundException when it isn't archived, doesn't exist or isn't the user's", async () => {
+      applicationsRepository.findArchivedByIdForUser.mockResolvedValue(null);
+
+      await expect(applicationsService.restore("user-1", "app-1")).rejects.toBeInstanceOf(NotFoundException);
+      expect(applicationsRepository.restoreApplication).not.toHaveBeenCalled();
     });
   });
 });

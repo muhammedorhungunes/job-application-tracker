@@ -18,8 +18,8 @@ import { serverApiFetch } from "@/lib/session";
 import {
   addNote,
   cancelInterview,
+  archiveApplication,
   createInterview,
-  deleteApplication,
   deleteNote,
   updateApplication,
   updateInterview,
@@ -65,9 +65,9 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
           <p className="text-sm text-muted-foreground">Last updated {formatDate(application.updatedAt)}</p>
         </div>
         <ConfirmSubmitButton
-          action={deleteApplication.bind(null, id)}
-          confirmMessage="Delete this application?"
-          label="Delete"
+          action={archiveApplication.bind(null, id)}
+          confirmMessage="Archive this application? You can restore it from Archived."
+          label="Archive"
         />
       </div>
       <ApplicationForm action={updateApplication.bind(null, id)} application={application} submitLabel="Save changes" />

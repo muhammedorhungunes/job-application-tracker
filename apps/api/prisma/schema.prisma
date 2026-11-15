@@ -32,6 +32,8 @@ enum ActivityType {
   INTERVIEW_SCHEDULED
   APPLICATION_CREATED
   INTERVIEW_CANCELLED
+  ARCHIVED
+  RESTORED
   // Mirrored by hand in packages/types/src/activity.ts.
 }
 
