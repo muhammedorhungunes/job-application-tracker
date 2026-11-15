@@ -149,6 +149,19 @@ user gets it at 09:00 in their own zone. The digest date in the idempotency
 key is the user's local date. Both send jobs re-read the settings, so turning
 a reminder off also stops one that's already queued.
 
+**CSV import is all-or-nothing and skips duplicates.** `POST /applications/import`
+validates every row with the same zod schema as `POST /applications` and
+rejects the whole file (with row numbers) if any row is invalid, so a
+half-imported file never needs cleaning up. Rows matching an application the
+user already has (company and position ignoring case, plus applied day) are
+skipped, so re-uploading a file or an export adds nothing. It runs in the
+request, not as a BullMQ job: at most 1 000 inserts in one transaction.
+`GET /applications/export` takes the board filters; the web app proxies it
+through a route handler because the auth cookies live on the web origin.
+Cells starting with `= + - @` get a leading `'` against spreadsheet formula
+injection, and import strips it again. The CSV reader/writer is a small
+hand-written one in `applications/csv/`, not a library.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
@@ -163,5 +176,8 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
   same applications.
 - **Tech filter is case-sensitive.** Tech stack entries are stored as typed,
   so "React" and "react" are separate filter options.
+- **Import can leave unused companies.** Companies are found or created
+  before the import transaction, so a failed write can leave a new, unused
+  `Company` row. Harmless for a single user.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new
   signups paused (see the roadmap).
