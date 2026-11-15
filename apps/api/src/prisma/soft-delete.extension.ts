@@ -10,6 +10,11 @@ import { Prisma } from "@prisma/client";
  * Not applied to `RefreshToken` (hard-deleted via cascade, it's auth infra).
  * `Activity` is included for user notes; system entries are never deleted.
  *
+ * A query that sets `deletedAt` itself at the top level of `where` (e.g.
+ * `{ deletedAt: { not: null } }` to list archived applications) keeps its own
+ * filter. `deletedAt: undefined` still gets the default — an unset optional
+ * field must never quietly include deleted rows.
+ *
  * Caveat: these hooks only run on top-level queries. A nested relation
  * select (e.g. `application.findMany({ select: { activities: ... } })`)
  * bypasses them and needs its own `where: { deletedAt: null }`.
@@ -19,34 +24,40 @@ import { Prisma } from "@prisma/client";
  * soft-deletable model gets its own `delete`/`deleteMany` override at the
  * `model` level, per Prisma's documented soft-delete recipe.
  */
+/** Adds `deletedAt: null` unless the caller filtered on `deletedAt` explicitly. */
+export function notDeleted<W extends { deletedAt?: unknown }>(where: W | undefined): W {
+  if (where?.deletedAt !== undefined) return where;
+  return { ...where, deletedAt: null } as W;
+}
+
 export const softDeleteExtension = Prisma.defineExtension((client) =>
   client.$extends({
     name: "soft-delete",
     query: {
       user: {
-        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
-        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
       company: {
-        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
-        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
       application: {
-        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
-        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
       activity: {
-        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
-        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
       interview: {
-        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
-        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
       // Read filter only: nothing deletes parse rows yet, so no delete override.
       jobPostingParse: {
-        findMany: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
-        findFirst: ({ args, query }) => query({ ...args, where: { ...args.where, deletedAt: null } }),
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
     },
     model: {
