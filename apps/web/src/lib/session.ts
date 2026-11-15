@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ApiError, apiFetch } from "@/lib/api-client";
+import { ApiError, apiFetch, apiFetchText } from "@/lib/api-client";
 import { AUTH_COOKIE_NAMES, authCookieOptions, buildAuthCookieHeader, parseAuthSetCookies } from "@/lib/auth-cookies";
 
 /**
@@ -18,15 +18,25 @@ export async function serverApiFetch<T>(
   schema: { parse: (data: unknown) => T },
   init?: RequestInit,
 ): Promise<T> {
+  const data = await asCurrentUser((withAuth) => apiFetch<unknown>(path, withAuth(init)));
+  return schema.parse(data);
+}
+
+/** Like serverApiFetch, for non-JSON responses (the CSV export). */
+export async function serverApiFetchText(path: string, init?: RequestInit): Promise<string> {
+  return asCurrentUser((withAuth) => apiFetchText(path, withAuth(init)));
+}
+
+async function asCurrentUser<T>(call: (withAuth: (init?: RequestInit) => RequestInit) => Promise<T>): Promise<T> {
   const store = await cookies();
   const cookieHeader = buildAuthCookieHeader((name) => store.get(name)?.value);
+  const withAuth = (init?: RequestInit): RequestInit => ({
+    ...init,
+    headers: { ...init?.headers, ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
+  });
 
   try {
-    const data = await apiFetch<unknown>(path, {
-      ...init,
-      headers: { ...init?.headers, ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
-    });
-    return schema.parse(data);
+    return await call(withAuth);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       redirect("/login");
