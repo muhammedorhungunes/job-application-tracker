@@ -1,5 +1,5 @@
 import { Test } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { Company } from "@prisma/client";
 import { AppConfigService } from "../config/app-config.service";
 import { ApplicationsService } from "./applications.service";
@@ -46,6 +46,8 @@ describe("ApplicationsService", () => {
             findManyByUserId: jest.fn(),
             findTechStacksByUserId: jest.fn(),
             createApplication: jest.fn(),
+            createApplications: jest.fn(),
+            findDuplicateKeyFieldsByUserId: jest.fn().mockResolvedValue([]),
             findCompanyByName: jest.fn(),
             createCompany: jest.fn(),
             findByIdForUser: jest.fn(),
@@ -633,6 +635,104 @@ describe("ApplicationsService", () => {
 
       expect(applicationsRepository.findByIdForUser).toHaveBeenCalledWith("app-1", "user-1");
       expect(applicationsRepository.deleteApplication).toHaveBeenCalledWith("app-1");
+    });
+  });
+
+  describe("exportCsv", () => {
+    it("exports the filtered list as CSV", async () => {
+      applicationsRepository.findManyByUserId.mockResolvedValue([fakeRow]);
+
+      const csv = await applicationsService.exportCsv("user-1", { status: ["APPLIED"] });
+
+      expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ statuses: ["APPLIED"] }),
+      );
+      const lines = csv.replace("\uFEFF", "").trimEnd().split("\r\n");
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toMatch(/^Backend Engineer,Acme Inc,APPLIED,LinkedIn,/);
+    });
+  });
+
+  describe("importCsv", () => {
+    it("rejects the whole file and writes nothing when any row is invalid", async () => {
+      const csv = "position,company\nDev,Acme\n,Acme\n";
+
+      const error = await applicationsService.importCsv("user-1", csv).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toEqual({
+        rows: [{ row: 3, messages: ["position: Required"] }],
+      });
+      expect(applicationsRepository.findCompanyByName).not.toHaveBeenCalled();
+      expect(applicationsRepository.createApplications).not.toHaveBeenCalled();
+    });
+
+    it("creates new rows with an 'Imported as' history entry", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplications.mockResolvedValue(1);
+
+      const result = await applicationsService.importCsv(
+        "user-1",
+        "position,company,status,appliedAt,techStack\nDev,Acme Inc,offer,2026-11-02,Go; Rust\n",
+      );
+
+      expect(result).toEqual({ imported: 1, skippedDuplicates: 0 });
+      expect(applicationsRepository.createApplications).toHaveBeenCalledWith([
+        {
+          userId: "user-1",
+          companyId: "company-1",
+          position: "Dev",
+          status: "OFFER",
+          source: null,
+          url: null,
+          appliedAt: new Date("2026-11-02T00:00:00.000Z"),
+          notes: null,
+          techStack: ["Go", "Rust"],
+          activities: { create: { type: "APPLICATION_CREATED", toStatus: "OFFER", description: "Imported as Offer" } },
+        },
+      ]);
+    });
+
+    it("skips rows matching an existing application or an earlier row, ignoring case and time of day", async () => {
+      applicationsRepository.findDuplicateKeyFieldsByUserId.mockResolvedValue([
+        { position: "Backend Engineer", appliedAt: new Date("2026-09-01T00:00:00.000Z"), company: { name: "Acme Inc" } },
+        { position: "No Date", appliedAt: null, company: { name: "Acme Inc" } },
+      ]);
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplications.mockResolvedValue(1);
+
+      const csv = [
+        "position,company,appliedAt",
+        "backend engineer,ACME INC,2026-09-01T15:00:00.000Z", // existing (same day)
+        "no date,acme inc,", // existing (both undated)
+        "No Date,Acme Inc,2026-09-01", // new: dated, the existing one isn't
+        "no date,ACME INC,2026-09-01", // same as the previous row
+      ].join("\n");
+      const result = await applicationsService.importCsv("user-1", csv);
+
+      expect(result).toEqual({ imported: 1, skippedDuplicates: 3 });
+      expect(applicationsRepository.createApplications).toHaveBeenCalledWith([
+        expect.objectContaining({ position: "No Date", appliedAt: new Date("2026-09-01T00:00:00.000Z") }),
+      ]);
+    });
+
+    it("looks up each company once and skips the write when everything is a duplicate", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(null);
+      applicationsRepository.createCompany.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplications.mockResolvedValue(2);
+
+      await applicationsService.importCsv("user-1", "position,company\nA,Acme\nB,acme\n");
+      expect(applicationsRepository.findCompanyByName).toHaveBeenCalledTimes(1);
+      expect(applicationsRepository.createCompany).toHaveBeenCalledTimes(1);
+
+      applicationsRepository.findDuplicateKeyFieldsByUserId.mockResolvedValue([
+        { position: "A", appliedAt: null, company: { name: "Acme" } },
+      ]);
+      applicationsRepository.createApplications.mockClear();
+      const result = await applicationsService.importCsv("user-1", "position,company\nA,Acme\n");
+      expect(result).toEqual({ imported: 0, skippedDuplicates: 1 });
+      expect(applicationsRepository.createApplications).not.toHaveBeenCalled();
     });
   });
 });

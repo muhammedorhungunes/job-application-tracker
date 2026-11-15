@@ -1,11 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import {
+  ApplicationImportInputSchema,
   ApplicationListQuerySchema,
   CreateApplicationInputSchema,
   CreateNoteInputSchema,
   UpdateApplicationInputSchema,
   type Activity,
   type Application,
+  type ApplicationImportInput,
+  type ApplicationImportResult,
   type ApplicationListQuery,
   type ApplicationStats,
   type CreateApplicationInput,
@@ -35,6 +39,29 @@ export class ApplicationsController {
   @Get("tech-stack")
   async techStack(@CurrentUser() user: AccessTokenPayload): Promise<string[]> {
     return this.applicationsService.getTechStackOptions(user.sub);
+  }
+
+  // Declared before @Get(":id") for the same reason as "stats". Takes the
+  // board's filters, so the download matches what the user is looking at.
+  @Get("export")
+  @Header("Content-Type", "text/csv; charset=utf-8")
+  async exportCsv(
+    @Query(new ZodValidationPipe(ApplicationListQuerySchema)) query: ApplicationListQuery,
+    @CurrentUser() user: AccessTokenPayload,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    const day = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Disposition", `attachment; filename="applications-${day}.csv"`);
+    return this.applicationsService.exportCsv(user.sub, query);
+  }
+
+  @Post("import")
+  @HttpCode(HttpStatus.OK)
+  async importCsv(
+    @Body(new ZodValidationPipe(ApplicationImportInputSchema)) body: ApplicationImportInput,
+    @CurrentUser() user: AccessTokenPayload,
+  ): Promise<ApplicationImportResult> {
+    return this.applicationsService.importCsv(user.sub, body.csv);
   }
 
   // Declared before @Get(":id") so "stats" isn't captured as an id.
