@@ -6,6 +6,10 @@ and see basic stats about how your search is going.
 
 Single-user for now. The plan and scope live in [`docs/roadmap.md`](docs/roadmap.md).
 
+![Dragging application cards between status columns on the Kanban board](docs/screenshots/board-drag.gif)
+
+![Stats page with conversion rates, status breakdown and applications per week](docs/screenshots/stats.png)
+
 ## Stack
 
 | | |
