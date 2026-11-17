@@ -15,7 +15,7 @@ export function KanbanColumn({ status, applications }: { status: ApplicationStat
       ref={setNodeRef}
       aria-labelledby={headingId}
       className={cn(
-        "flex w-60 shrink-0 flex-col gap-2 rounded-md border border-border bg-muted/50 p-2",
+        "flex min-w-56 flex-1 shrink-0 flex-col gap-2 rounded-md border border-border bg-muted/50 p-2",
         isOver && "border-foreground/40 bg-muted",
       )}
     >
