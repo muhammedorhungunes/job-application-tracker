@@ -45,6 +45,20 @@ enum InterviewKind {
   // Mirrored by hand in packages/types/src/interview.ts.
 }
 
+enum WorkMode {
+  ONSITE
+  HYBRID
+  REMOTE
+  // Mirrored by hand in packages/types/src/application.ts.
+}
+
+enum SalaryPeriod {
+  YEAR
+  MONTH
+  HOUR
+  // Mirrored by hand in packages/types/src/application.ts.
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -100,21 +114,29 @@ model Company {
 }
 
 model Application {
-  id        String            @id @default(cuid())
-  userId    String
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyId String
-  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  position  String
-  status    ApplicationStatus @default(APPLIED)
-  source    String?
-  url       String?
-  appliedAt DateTime?
-  notes     String?
-  techStack String[]          @default([])
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  deletedAt DateTime?
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId      String
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position       String
+  status         ApplicationStatus @default(APPLIED)
+  source         String?
+  url            String?
+  appliedAt      DateTime?
+  notes          String?
+  techStack      String[]          @default([])
+  location       String?
+  workMode       WorkMode?
+  // Amounts, currency and period are set together (see salaryIssues in packages/types).
+  salaryMin      Decimal?          @db.Decimal(12, 2)
+  salaryMax      Decimal?          @db.Decimal(12, 2)
+  /// ISO 4217 code, e.g. "EUR".
+  salaryCurrency String?
+  salaryPeriod   SalaryPeriod?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
 
   activities Activity[]
   reminders  ApplicationReminder[]
