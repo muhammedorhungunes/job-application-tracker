@@ -174,6 +174,15 @@ a fresh `updatedAt`, so the stale digest doesn't fire right away). The
 soft-delete extension adds `deletedAt: null` to every top-level read unless
 the query sets `deletedAt` itself; `undefined` still gets the default.
 
+**Salary is a Decimal string.** `salaryMin` / `salaryMax` are
+`Decimal(12, 2)` columns and travel over HTTP as strings (`"65000.00"`), so
+money is never rounded through a JS float. Amount, currency (ISO 4217) and
+period (year / month / hour) are checked together by one shared function,
+`salaryIssues`, which the zod schemas use and the service runs again on the
+stored values merged with a PATCH. A currency or period without an amount is
+dropped. The AI parser also extracts salary, location and work mode; the web
+app drops anything unusable before pre-filling the form.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
@@ -191,5 +200,7 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 - **Import can leave unused companies.** Companies are found or created
   before the import transaction, so a failed write can leave a new, unused
   `Company` row. Harmless for a single user.
+- **Salary isn't in CSV, filters or the board yet.** It's on the detail
+  page and form only; there's no currency conversion either.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new
   signups paused (see the roadmap).

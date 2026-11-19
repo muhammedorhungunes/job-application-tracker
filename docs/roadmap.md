@@ -159,6 +159,18 @@ merged. The deploy stays the one open Phase 1 item.
     values via migration. The soft-delete extension now keeps an explicit
     top-level `deletedAt` filter. No new libraries.
 
+- **Salary and location**
+  - **Status (2026-11-19):** done on `feat/salary-location`. Applications
+    get `location` (text), `workMode` (on-site / hybrid / remote) and a salary
+    range: `salaryMin` / `salaryMax` (`Decimal(12, 2)`, strings over HTTP),
+    `salaryCurrency` (ISO 4217) and `salaryPeriod` (year / month / hour).
+    An amount needs a currency and period, and min must not exceed max; a
+    PATCH is checked against the stored values. The detail page shows
+    "Berlin · Hybrid · €60,000–€75,000 / year". The AI parser now fills
+    location, work mode and salary instead of writing the location into
+    notes (parses stored before this read back as failed). Not yet in CSV,
+    board filters or Kanban cards. No new libraries.
+
 ## Out of scope until explicitly requested
 
 See `CLAUDE.md` → *Scope discipline*:
