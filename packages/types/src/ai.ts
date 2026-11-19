@@ -16,6 +16,13 @@ export const JobPostingExtractionSchema = z4.object({
   position: z4.string().min(1).max(200),
   techStack: z4.array(z4.string().min(1).max(50)).max(30),
   location: z4.string().max(200).nullable(),
+  workMode: z4.enum(["ONSITE", "HYBRID", "REMOTE"]).nullable(),
+  // Plain numbers and strings: the web form normalises them (and drops
+  // anything unusable) before they reach CreateApplicationInputSchema.
+  salaryMin: z4.number().nullable(),
+  salaryMax: z4.number().nullable(),
+  salaryCurrency: z4.string().nullable(),
+  salaryPeriod: z4.enum(["YEAR", "MONTH", "HOUR"]).nullable(),
   url: z4.string().nullable(),
 });
 export type JobPostingExtraction = z4.infer<typeof JobPostingExtractionSchema>;

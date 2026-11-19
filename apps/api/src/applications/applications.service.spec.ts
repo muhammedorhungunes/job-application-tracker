@@ -1,6 +1,6 @@
 import { Test } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import type { Company } from "@prisma/client";
+import { Prisma, type Company } from "@prisma/client";
 import { AppConfigService } from "../config/app-config.service";
 import { ApplicationsService } from "./applications.service";
 import { ApplicationsRepository, type ApplicationWithCompany } from "./applications.repository";
@@ -20,10 +20,24 @@ describe("ApplicationsService", () => {
     appliedAt: new Date("2026-09-01T00:00:00.000Z"),
     notes: null,
     techStack: ["TypeScript", "NestJS"],
+    location: null,
+    workMode: null,
+    salaryMin: null,
+    salaryMax: null,
+    salaryCurrency: null,
+    salaryPeriod: null,
     createdAt: new Date("2026-09-01T00:00:00.000Z"),
     updatedAt: new Date("2026-09-02T00:00:00.000Z"),
     deletedAt: null,
     company: { id: "company-1", name: "Acme Inc" },
+  };
+
+  const salaryRow: ApplicationWithCompany = {
+    ...fakeRow,
+    salaryMin: new Prisma.Decimal("60000"),
+    salaryMax: new Prisma.Decimal("75000"),
+    salaryCurrency: "EUR",
+    salaryPeriod: "YEAR",
   };
 
   const fakeCompany: Company = {
@@ -188,11 +202,34 @@ describe("ApplicationsService", () => {
           appliedAt: "2026-09-01T00:00:00.000Z",
           notes: null,
           techStack: ["TypeScript", "NestJS"],
+          location: null,
+          workMode: null,
+          salaryMin: null,
+          salaryMax: null,
+          salaryCurrency: null,
+          salaryPeriod: null,
           createdAt: "2026-09-01T00:00:00.000Z",
           updatedAt: "2026-09-02T00:00:00.000Z",
           company: { id: "company-1", name: "Acme Inc" },
         },
       ]);
+    });
+
+    it("serializes location, work mode and Decimal salary amounts with two places", async () => {
+      applicationsRepository.findManyByUserId.mockResolvedValue([
+        { ...salaryRow, location: "Berlin", workMode: "HYBRID", salaryMin: new Prisma.Decimal("60000.5") },
+      ]);
+
+      const [result] = await applicationsService.findAllForUser("user-1");
+
+      expect(result).toMatchObject({
+        location: "Berlin",
+        workMode: "HYBRID",
+        salaryMin: "60000.50",
+        salaryMax: "75000.00",
+        salaryCurrency: "EUR",
+        salaryPeriod: "YEAR",
+      });
     });
 
     it("maps a null appliedAt to null instead of throwing", async () => {
@@ -443,7 +480,50 @@ describe("ApplicationsService", () => {
           appliedAt: null,
           notes: null,
           techStack: [],
+          location: null,
+          workMode: null,
+          salaryMin: null,
+          salaryMax: null,
+          salaryCurrency: null,
+          salaryPeriod: null,
         }),
+      );
+    });
+
+    it("stores location, work mode and salary, keeping amounts as exact strings", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplication.mockResolvedValue(salaryRow);
+
+      await applicationsService.create("user-1", {
+        ...input,
+        location: "Berlin",
+        workMode: "REMOTE",
+        salaryMin: "60000",
+        salaryMax: "75000.50",
+        salaryCurrency: "EUR",
+        salaryPeriod: "YEAR",
+      });
+
+      expect(applicationsRepository.createApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          location: "Berlin",
+          workMode: "REMOTE",
+          salaryMin: "60000",
+          salaryMax: "75000.50",
+          salaryCurrency: "EUR",
+          salaryPeriod: "YEAR",
+        }),
+      );
+    });
+
+    it("drops a currency and period that come without any amount", async () => {
+      applicationsRepository.findCompanyByName.mockResolvedValue(fakeCompany);
+      applicationsRepository.createApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.create("user-1", { ...input, salaryCurrency: "EUR", salaryPeriod: "YEAR" });
+
+      expect(applicationsRepository.createApplication).toHaveBeenCalledWith(
+        expect.objectContaining({ salaryCurrency: null, salaryPeriod: null }),
       );
     });
 
@@ -501,6 +581,12 @@ describe("ApplicationsService", () => {
         appliedAt: "2026-09-01T00:00:00.000Z",
         notes: null,
         techStack: ["TypeScript", "NestJS"],
+        location: null,
+        workMode: null,
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: null,
+        salaryPeriod: null,
         createdAt: "2026-09-01T00:00:00.000Z",
         updatedAt: "2026-09-02T00:00:00.000Z",
         company: { id: "company-1", name: "Acme Inc" },
@@ -612,6 +698,67 @@ describe("ApplicationsService", () => {
       expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", { companyId: "company-2" });
     });
 
+    it("forwards location and work mode, including null to clear them", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+      applicationsRepository.updateApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.update("user-1", "app-1", { location: "Munich", workMode: null });
+
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", {
+        location: "Munich",
+        workMode: null,
+      });
+    });
+
+    it("merges a partial salary patch with the stored salary", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(salaryRow);
+      applicationsRepository.updateApplication.mockResolvedValue(salaryRow);
+
+      await applicationsService.update("user-1", "app-1", { salaryMax: "80000" });
+
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", {
+        salaryMin: "60000.00",
+        salaryMax: "80000",
+        salaryCurrency: "EUR",
+        salaryPeriod: "YEAR",
+      });
+    });
+
+    it("rejects a new maximum below the stored minimum without writing", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(salaryRow);
+
+      const update = applicationsService.update("user-1", "app-1", { salaryMax: "50000" });
+
+      await expect(update).rejects.toThrow(BadRequestException);
+      await expect(update).rejects.toMatchObject({
+        response: { formErrors: [], fieldErrors: { salaryMax: [expect.any(String)] } },
+      });
+      expect(applicationsRepository.updateApplication).not.toHaveBeenCalled();
+    });
+
+    it("rejects an amount when no currency is stored or sent", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
+
+      await expect(applicationsService.update("user-1", "app-1", { salaryMin: "50000" })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(applicationsRepository.updateApplication).not.toHaveBeenCalled();
+    });
+
+    it("clears currency and period when both amounts are cleared", async () => {
+      applicationsRepository.findByIdForUser.mockResolvedValue(salaryRow);
+      applicationsRepository.updateApplication.mockResolvedValue(fakeRow);
+
+      await applicationsService.update("user-1", "app-1", { salaryMin: null, salaryMax: null });
+
+      expect(applicationsRepository.updateApplication).toHaveBeenCalledWith("app-1", {
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: null,
+        salaryPeriod: null,
+      });
+    });
+
     it("returns the updated application mapped into the API shape", async () => {
       applicationsRepository.findByIdForUser.mockResolvedValue(fakeRow);
       applicationsRepository.updateApplication.mockResolvedValue({ ...fakeRow, position: "Staff Engineer" });
@@ -692,6 +839,12 @@ describe("ApplicationsService", () => {
           appliedAt: new Date("2026-11-02T00:00:00.000Z"),
           notes: null,
           techStack: ["Go", "Rust"],
+          location: null,
+          workMode: null,
+          salaryMin: null,
+          salaryMax: null,
+          salaryCurrency: null,
+          salaryPeriod: null,
           activities: { create: { type: "APPLICATION_CREATED", toStatus: "OFFER", description: "Imported as Offer" } },
         },
       ]);

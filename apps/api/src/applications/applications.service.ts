@@ -1,16 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { ApplicationStatus, Company, Prisma } from "@prisma/client";
-import type {
-  Activity,
-  Application,
-  ApplicationImportError,
-  ApplicationImportResult,
-  ApplicationListQuery,
-  ApplicationStats,
-  ArchivedApplication,
-  CreateApplicationInput,
-  CreateNoteInput,
-  UpdateApplicationInput,
+import {
+  salaryIssues,
+  type Activity,
+  type Application,
+  type ApplicationImportError,
+  type ApplicationImportResult,
+  type ApplicationListQuery,
+  type ApplicationStats,
+  type ArchivedApplication,
+  type CreateApplicationInput,
+  type CreateNoteInput,
+  type SalaryFields,
+  type UpdateApplicationInput,
 } from "@job-tracker/types";
 import { AppConfigService } from "../config/app-config.service";
 import { effectiveReminderSettings } from "../settings/effective-settings";
@@ -22,6 +24,23 @@ import {
   type ApplicationListFilter,
   type ApplicationWithCompany,
 } from "./applications.repository";
+
+const SALARY_KEYS = ["salaryMin", "salaryMax", "salaryCurrency", "salaryPeriod"] as const;
+
+/**
+ * The salary columns to store. Without an amount there's no salary at all,
+ * so a currency / period on its own (the form's defaults) isn't kept.
+ * Amounts stay strings: Prisma accepts them for Decimal columns as-is.
+ */
+function salaryColumns(fields: SalaryFields) {
+  const hasAmount = Boolean(fields.salaryMin || fields.salaryMax);
+  return {
+    salaryMin: fields.salaryMin ?? null,
+    salaryMax: fields.salaryMax ?? null,
+    salaryCurrency: hasAmount ? (fields.salaryCurrency ?? null) : null,
+    salaryPeriod: hasAmount ? (fields.salaryPeriod ?? null) : null,
+  };
+}
 
 /** "INTERVIEWING" -> "Interviewing", for activity descriptions. */
 function statusLabel(status: ApplicationStatus): string {
@@ -185,6 +204,9 @@ export class ApplicationsService {
       appliedAt: input.appliedAt ? new Date(input.appliedAt) : null,
       notes: input.notes ?? null,
       techStack: input.techStack ?? [],
+      location: input.location ?? null,
+      workMode: input.workMode ?? null,
+      ...salaryColumns(input),
       // Nested write: the application and its first history entry are
       // created atomically.
       activities: {
@@ -224,6 +246,26 @@ export class ApplicationsService {
     if ("url" in input) data.url = input.url;
     if ("notes" in input) data.notes = input.notes;
     if ("techStack" in input) data.techStack = input.techStack;
+    if ("location" in input) data.location = input.location;
+    if ("workMode" in input) data.workMode = input.workMode;
+    if (SALARY_KEYS.some((key) => key in input)) {
+      // A partial salary patch is checked against what's stored, e.g. a new
+      // maximum below the existing minimum.
+      const merged: SalaryFields = {
+        salaryMin: "salaryMin" in input ? input.salaryMin : (existing.salaryMin?.toFixed(2) ?? null),
+        salaryMax: "salaryMax" in input ? input.salaryMax : (existing.salaryMax?.toFixed(2) ?? null),
+        salaryCurrency: "salaryCurrency" in input ? input.salaryCurrency : existing.salaryCurrency,
+        salaryPeriod: "salaryPeriod" in input ? input.salaryPeriod : existing.salaryPeriod,
+      };
+      const issues = salaryIssues(merged);
+      if (issues.length > 0) {
+        // Same body shape as ZodValidationPipe (zod's flatten()), so clients handle both alike.
+        const fieldErrors: Partial<Record<keyof SalaryFields, string[]>> = {};
+        for (const issue of issues) (fieldErrors[issue.path] ??= []).push(issue.message);
+        throw new BadRequestException({ formErrors: [], fieldErrors });
+      }
+      Object.assign(data, salaryColumns(merged));
+    }
     if ("appliedAt" in input) data.appliedAt = input.appliedAt ? new Date(input.appliedAt) : null;
     if ("companyName" in input && input.companyName) {
       const company = await this.getOrCreateCompany(input.companyName);
@@ -313,6 +355,12 @@ export class ApplicationsService {
       appliedAt: row.appliedAt?.toISOString() ?? null,
       notes: row.notes,
       techStack: row.techStack,
+      location: row.location,
+      workMode: row.workMode,
+      salaryMin: row.salaryMin?.toFixed(2) ?? null,
+      salaryMax: row.salaryMax?.toFixed(2) ?? null,
+      salaryCurrency: row.salaryCurrency,
+      salaryPeriod: row.salaryPeriod,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       company: { id: row.company.id, name: row.company.name },
