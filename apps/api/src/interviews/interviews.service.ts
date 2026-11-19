@@ -1,22 +1,21 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type { InterviewKind, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { CreateInterviewInput, Interview, UpcomingInterview, UpdateInterviewInput } from "@job-tracker/types";
+import { AppConfigService } from "../config/app-config.service";
+import { interviewsToIcs } from "./ics";
+import { KIND_LABELS } from "./interview-kind-labels";
 import { InterviewsRepository, type InterviewRow, type UpcomingInterviewRow } from "./interviews.repository";
 
 const HOUR_MS = 60 * 60 * 1000;
-
-const KIND_LABELS: Record<InterviewKind, string> = {
-  PHONE: "Phone interview",
-  TECHNICAL: "Technical interview",
-  ONSITE: "Onsite interview",
-  OTHER: "Interview",
-};
 
 // Timeline descriptions carry no date/time on purpose: the server would have
 // to pick a time zone. The interview list shows the time in the viewer's zone.
 @Injectable()
 export class InterviewsService {
-  constructor(private readonly interviewsRepository: InterviewsRepository) {}
+  constructor(
+    private readonly interviewsRepository: InterviewsRepository,
+    private readonly config: AppConfigService,
+  ) {}
 
   /** Soonest first. */
   async list(userId: string, applicationId: string): Promise<Interview[]> {
@@ -31,6 +30,31 @@ export class InterviewsService {
     const to = new Date(now.getTime() + days * 24 * HOUR_MS);
     const rows = await this.interviewsRepository.findUpcomingForUser(userId, from, to);
     return rows.map(toUpcomingInterview);
+  }
+
+  /**
+   * Every upcoming interview as an .ics file, with no end to the window
+   * (unlike listUpcoming). Same rules otherwise: cancelled interviews and
+   * closed or archived applications are left out.
+   */
+  async calendarForUser(userId: string, now: Date = new Date()): Promise<string> {
+    const rows = await this.interviewsRepository.findUpcomingForUser(userId, new Date(now.getTime() - HOUR_MS));
+    return interviewsToIcs(rows, this.config.webOrigin, now);
+  }
+
+  /** One interview as an .ics file, past or future; 404 if cancelled or not the user's. */
+  async calendarForInterview(
+    userId: string,
+    applicationId: string,
+    interviewId: string,
+    now: Date = new Date(),
+  ): Promise<string> {
+    await this.assertApplicationOwned(userId, applicationId);
+    const row = await this.interviewsRepository.findWithApplicationById(interviewId, applicationId);
+    if (!row) {
+      throw new NotFoundException("Interview not found");
+    }
+    return interviewsToIcs([row], this.config.webOrigin, now);
   }
 
   async create(userId: string, applicationId: string, input: CreateInterviewInput): Promise<Interview> {

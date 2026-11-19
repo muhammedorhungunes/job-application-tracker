@@ -55,19 +55,24 @@ export class InterviewsRepository {
   }
 
   /**
-   * Interviews in [from, to] across the user's open applications, soonest
-   * first. The soft-delete extension only covers the top-level model, so the
-   * application's deletedAt is filtered explicitly.
+   * Interviews in [from, to] (no upper bound without `to`) across the user's
+   * open applications, soonest first. The soft-delete extension only covers
+   * the top-level model, so the application's deletedAt is filtered explicitly.
    */
-  findUpcomingForUser(userId: string, from: Date, to: Date): Promise<UpcomingInterviewRow[]> {
+  findUpcomingForUser(userId: string, from: Date, to?: Date): Promise<UpcomingInterviewRow[]> {
     return this.prisma.client.interview.findMany({
       where: {
-        scheduledAt: { gte: from, lte: to },
+        scheduledAt: { gte: from, ...(to && { lte: to }) },
         application: { userId, deletedAt: null, status: { notIn: [...ClosedApplicationStatusValues] } },
       },
       orderBy: { scheduledAt: "asc" },
       select: upcomingFields,
     });
+  }
+
+  /** Bare applicationId: ownership is the caller's job, as with findByIdForApplication. */
+  findWithApplicationById(id: string, applicationId: string): Promise<UpcomingInterviewRow | null> {
+    return this.prisma.client.interview.findFirst({ where: { id, applicationId }, select: upcomingFields });
   }
 
   findByIdForApplication(id: string, applicationId: string): Promise<InterviewRow | null> {

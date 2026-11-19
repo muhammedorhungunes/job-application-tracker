@@ -199,4 +199,60 @@ describe("Interviews (e2e)", () => {
       await request(server).get("/interviews/upcoming").expect(401);
     });
   });
+
+  describe("calendar (.ics)", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const inDays = (days: number) => new Date(Date.now() + days * DAY_MS).toISOString();
+    const uids = (ics: string) => [...ics.matchAll(/^UID:interview-(\S+)@/gm)].map((m) => m[1]);
+
+    it("exports all upcoming interviews of open applications, without a window limit", async () => {
+      const server = app.getHttpServer();
+      const cookie = await registerAndGetAccessCookie();
+      const res = await request(server)
+        .post("/applications")
+        .set("Cookie", [cookie])
+        .send({ position: "Engineer", companyName: `Calendar Co ${randomUUID()}` })
+        .expect(201);
+      const applicationId = res.body.id as string;
+      const schedule = async (scheduledAt: string) => {
+        const created = await request(server)
+          .post(`/applications/${applicationId}/interviews`)
+          .set("Cookie", [cookie])
+          .send({ kind: "PHONE", scheduledAt })
+          .expect(201);
+        return created.body.id as string;
+      };
+      const soon = await schedule(inDays(2));
+      const farOut = await schedule(inDays(60));
+      const past = await schedule(inDays(-3));
+
+      const all = await request(server).get("/interviews/calendar").set("Cookie", [cookie]).expect(200);
+      expect(all.headers["content-type"]).toMatch(/^text\/calendar/);
+      expect(uids(all.text)).toEqual([soon, farOut]);
+
+      // A single interview can be exported even when it's in the past.
+      const one = await request(server)
+        .get(`/applications/${applicationId}/interviews/${past}/calendar`)
+        .set("Cookie", [cookie])
+        .expect(200);
+      expect(uids(one.text)).toEqual([past]);
+
+      await request(server).delete(`/applications/${applicationId}/interviews/${past}`).set("Cookie", [cookie]).expect(204);
+      await request(server)
+        .get(`/applications/${applicationId}/interviews/${past}/calendar`)
+        .set("Cookie", [cookie])
+        .expect(404);
+      await request(server)
+        .get(`/applications/${applicationId}/interviews/${soon}/calendar`)
+        .set("Cookie", [otherUserCookie])
+        .expect(404);
+
+      const other = await request(server).get("/interviews/calendar").set("Cookie", [otherUserCookie]).expect(200);
+      expect(uids(other.text)).toEqual([]);
+    });
+
+    it("requires auth", async () => {
+      await request(app.getHttpServer()).get("/interviews/calendar").expect(401);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Header, Query, UseGuards } from "@nestjs/common";
 import {
   UpcomingInterviewsQuerySchema,
   type UpcomingInterview,
@@ -22,5 +22,12 @@ export class UpcomingInterviewsController {
     @CurrentUser() user: AccessTokenPayload,
   ): Promise<UpcomingInterview[]> {
     return this.interviewsService.listUpcoming(user.sub, query.days);
+  }
+
+  /** Every upcoming interview as an iCalendar file. */
+  @Get("calendar")
+  @Header("Content-Type", "text/calendar; charset=utf-8")
+  async calendar(@CurrentUser() user: AccessTokenPayload): Promise<string> {
+    return this.interviewsService.calendarForUser(user.sub);
   }
 }
