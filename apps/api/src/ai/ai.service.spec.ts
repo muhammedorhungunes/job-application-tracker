@@ -11,7 +11,12 @@ describe("AiService", () => {
     companyName: "Acme Inc",
     position: "Backend Engineer",
     techStack: ["TypeScript", "PostgreSQL"],
-    location: "Remote (EU)",
+    location: "EU",
+    workMode: "REMOTE",
+    salaryMin: 60000,
+    salaryMax: 75000,
+    salaryCurrency: "EUR",
+    salaryPeriod: "YEAR",
     url: null,
   };
 

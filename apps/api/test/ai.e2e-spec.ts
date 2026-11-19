@@ -21,6 +21,11 @@ describe("AI job postings (e2e)", () => {
     position: "Backend Engineer",
     techStack: ["TypeScript", "PostgreSQL"],
     location: "Remote",
+    workMode: "REMOTE",
+    salaryMin: null,
+    salaryMax: null,
+    salaryCurrency: null,
+    salaryPeriod: null,
     url: null,
   };
   const parse = jest.fn().mockResolvedValue({

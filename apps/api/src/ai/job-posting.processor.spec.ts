@@ -13,7 +13,7 @@ describe("JobPostingProcessor", () => {
   let repository: jest.Mocked<JobPostingParsesRepository>;
 
   const row = { id: "parse-1", rawText: "posting" } as JobPostingParse;
-  const extraction = { companyName: "Acme", position: "Engineer", techStack: [], location: null, url: null };
+  const extraction = { companyName: "Acme", position: "Engineer", techStack: [], location: null, workMode: null, salaryMin: null, salaryMax: null, salaryCurrency: null, salaryPeriod: null, url: null };
 
   const fakeJob = (attemptsMade: number): Job<ExtractJobPostingJobData> =>
     ({ data: { parseId: "parse-1" }, attemptsMade, opts: { attempts: 3 } }) as Job<ExtractJobPostingJobData>;

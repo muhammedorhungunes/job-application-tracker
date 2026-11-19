@@ -31,6 +31,11 @@ describe("JobPostingParsesService", () => {
     position: "Backend Engineer",
     techStack: ["TypeScript"],
     location: null,
+    workMode: null,
+    salaryMin: null,
+    salaryMax: null,
+    salaryCurrency: null,
+    salaryPeriod: null,
     url: null,
   };
 
