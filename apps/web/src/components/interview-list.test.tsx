@@ -19,6 +19,7 @@ const actions = {
   createAction: vi.fn(),
   updateAction: () => vi.fn(),
   cancelAction: () => vi.fn(),
+  calendarHref: (interviewId: string) => `/calendar/${interviewId}`,
 };
 
 describe("InterviewList", () => {
@@ -52,5 +53,23 @@ describe("InterviewList", () => {
     expect(screen.getByText("No interviews scheduled.")).toBeTruthy();
     expect(screen.getByText("Schedule an interview")).toBeTruthy();
     expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("offers a calendar download for upcoming interviews only", () => {
+    render(
+      <InterviewList
+        interviews={[
+          interview({ id: "past", scheduledAt: "2026-11-01T10:00:00.000Z" }),
+          interview({ id: "next", scheduledAt: "2026-11-12T10:00:00.000Z" }),
+        ]}
+        now={new Date("2026-11-09T12:00:00.000Z")}
+        {...actions}
+      />,
+    );
+
+    const upcoming = within(screen.getByRole("list", { name: "Upcoming interviews" }));
+    expect(upcoming.getByRole("link", { name: "Add to calendar" })).toHaveAttribute("href", "/calendar/next");
+    const past = within(screen.getByRole("list", { name: "Past interviews" }));
+    expect(past.queryByRole("link", { name: "Add to calendar" })).toBeNull();
   });
 });
