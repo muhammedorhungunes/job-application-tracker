@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import {
   CreateInterviewInputSchema,
   UpdateInterviewInputSchema,
@@ -24,6 +36,17 @@ export class InterviewsController {
     @CurrentUser() user: AccessTokenPayload,
   ): Promise<Interview[]> {
     return this.interviewsService.list(user.sub, applicationId);
+  }
+
+  /** One interview as an iCalendar file. */
+  @Get(":interviewId/calendar")
+  @Header("Content-Type", "text/calendar; charset=utf-8")
+  async calendar(
+    @Param("applicationId") applicationId: string,
+    @Param("interviewId") interviewId: string,
+    @CurrentUser() user: AccessTokenPayload,
+  ): Promise<string> {
+    return this.interviewsService.calendarForInterview(user.sub, applicationId, interviewId);
   }
 
   @Post()

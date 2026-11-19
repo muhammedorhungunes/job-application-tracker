@@ -1,5 +1,6 @@
 import type { Interview } from "@job-tracker/types";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { buttonVariants } from "@/components/ui/button";
 import { InterviewForm } from "@/components/interview-form";
 import { LocalDateTime } from "@/components/local-date-time";
 import type { FormState } from "@/lib/form-state";
@@ -14,6 +15,7 @@ export function InterviewList({
   createAction,
   updateAction,
   cancelAction,
+  calendarHref,
 }: {
   /** Soonest first, as the API returns them. */
   interviews: Interview[];
@@ -21,12 +23,14 @@ export function InterviewList({
   createAction: FormAction;
   updateAction: (interviewId: string) => FormAction;
   cancelAction: (interviewId: string) => () => Promise<void>;
+  /** Download link for one interview's .ics file; offered for upcoming interviews only. */
+  calendarHref: (interviewId: string) => string;
 }) {
   const upcoming = interviews.filter((i) => new Date(i.scheduledAt) >= now);
   // Most recent past interview first.
   const past = interviews.filter((i) => new Date(i.scheduledAt) < now).reverse();
 
-  const renderGroup = (title: string, items: Interview[]) =>
+  const renderGroup = (title: string, items: Interview[], withCalendar: boolean) =>
     items.length > 0 && (
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
@@ -45,6 +49,16 @@ export function InterviewList({
                     <InterviewForm action={updateAction(interview.id)} interview={interview} submitLabel="Save" />
                   </div>
                 </details>
+                {withCalendar && (
+                  // A plain link: the route handler answers with a file download.
+                  <a
+                    href={calendarHref(interview.id)}
+                    download
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    Add to calendar
+                  </a>
+                )}
                 <ConfirmSubmitButton
                   action={cancelAction(interview.id)}
                   confirmMessage="Cancel this interview?"
@@ -62,8 +76,8 @@ export function InterviewList({
     <section className="flex flex-col gap-3 rounded-lg border border-border p-4">
       <h2 className="font-medium">Interviews</h2>
       {interviews.length === 0 && <p className="text-sm text-muted-foreground">No interviews scheduled.</p>}
-      {renderGroup("Upcoming", upcoming)}
-      {renderGroup("Past", past)}
+      {renderGroup("Upcoming", upcoming, true)}
+      {renderGroup("Past", past, false)}
       <details>
         <summary className="cursor-pointer text-sm font-medium">Schedule an interview</summary>
         <div className="pt-3">

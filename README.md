@@ -183,6 +183,12 @@ stored values merged with a PATCH. A currency or period without an amount is
 dropped. The AI parser also extracts salary, location and work mode; the web
 app drops anything unusable before pre-filling the form.
 
+**Calendar files, not a feed.** Interviews download as `.ics` files built by
+a small RFC 5545 writer in `interviews/ics.ts` (escaping and 75-byte line
+folding). Each event has a stable `UID`, so importing a newer file updates
+the event. A subscribable feed would need a secret per-user URL, since
+calendar apps can't send our auth cookies; it's left out for now.
+
 **Few dependencies.** New libraries need a reason. Resend is called with
 plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 (`@dnd-kit/core`) was added only after it was agreed on.
@@ -202,5 +208,7 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
   `Company` row. Harmless for a single user.
 - **Salary isn't in CSV, filters or the board yet.** It's on the detail
   page and form only; there's no currency conversion either.
+- **Calendar events are always one hour.** Interviews have no stored
+  duration. Changes don't sync on their own; download the file again.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new
   signups paused (see the roadmap).

@@ -25,6 +25,12 @@ describe("UpcomingInterviews", () => {
     expect(screen.getByText("Next 7 days")).toBeTruthy();
   });
 
+  it("links to the .ics download of every upcoming interview", () => {
+    render(<UpcomingInterviews days={7} interviews={[interview("1", "Acme", "TECHNICAL")]} />);
+
+    expect(screen.getByRole("link", { name: "Download all (.ics)" })).toHaveAttribute("href", "/applications/calendar");
+  });
+
   it("renders nothing when there are no upcoming interviews", () => {
     const { container } = render(<UpcomingInterviews days={7} interviews={[]} />);
     expect(container.innerHTML).toBe("");

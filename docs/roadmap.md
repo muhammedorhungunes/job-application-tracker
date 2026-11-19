@@ -171,6 +171,18 @@ merged. The deploy stays the one open Phase 1 item.
     notes (parses stored before this read back as failed). Not yet in CSV,
     board filters or Kanban cards. No new libraries.
 
+- **Interview calendar export**
+  - **Status (2026-11-20):** done on `feat/interview-calendar`. Interviews
+    download as iCalendar files: "Add to calendar" on each upcoming
+    interview (`GET /applications/:applicationId/interviews/:interviewId/calendar`)
+    and "Download all (.ics)" above the board (`GET /interviews/calendar`,
+    every upcoming interview with no window limit, same rules as the
+    upcoming list). Events are an hour long (no duration is stored), in UTC,
+    with a stable UID so re-importing updates instead of duplicating. The web
+    app proxies both through route handlers. Download only, no subscription
+    feed. Hand-written RFC 5545 output (escaping, 75-byte folding). No schema
+    change, no new libraries.
+
 ## Out of scope until explicitly requested
 
 See `CLAUDE.md` → *Scope discipline*:

@@ -1,6 +1,7 @@
 import { NotFoundException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { InterviewsRepository, type InterviewRow } from "./interviews.repository";
+import { AppConfigService } from "../config/app-config.service";
+import { InterviewsRepository, type InterviewRow, type UpcomingInterviewRow } from "./interviews.repository";
 import { InterviewsService } from "./interviews.service";
 
 describe("InterviewsService", () => {
@@ -27,11 +28,13 @@ describe("InterviewsService", () => {
             findManyByApplicationId: jest.fn(),
             findUpcomingForUser: jest.fn(),
             findByIdForApplication: jest.fn(),
+            findWithApplicationById: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
             cancel: jest.fn(),
           },
         },
+        { provide: AppConfigService, useValue: { webOrigin: "https://tracker.example/" } },
       ],
     }).compile();
 
@@ -64,6 +67,52 @@ describe("InterviewsService", () => {
           application: { id: "app-1", position: "Engineer", status: "INTERVIEWING", company: { id: "co-1", name: "Acme" } },
         }),
       ]);
+    });
+  });
+
+  describe("calendarForUser", () => {
+    it("exports every interview from an hour ago on, with no end to the window", async () => {
+      const upcoming: UpcomingInterviewRow = {
+        ...row,
+        application: { id: "app-1", position: "Engineer", status: "INTERVIEWING", company: { id: "co-1", name: "Acme" } },
+      };
+      repository.findUpcomingForUser.mockResolvedValue([upcoming]);
+
+      const ics = await service.calendarForUser("user-1", new Date("2026-11-10T12:00:00.000Z"));
+
+      expect(repository.findUpcomingForUser).toHaveBeenCalledWith("user-1", new Date("2026-11-10T11:00:00.000Z"));
+      expect(ics).toContain("UID:interview-int-1@job-application-tracker");
+      expect(ics).toContain("URL:https://tracker.example/applications/app-1");
+    });
+  });
+
+  describe("calendarForInterview", () => {
+    it("checks ownership and exports the one interview", async () => {
+      repository.findApplicationForUser.mockResolvedValue({ id: "app-1" });
+      repository.findWithApplicationById.mockResolvedValue({
+        ...row,
+        application: { id: "app-1", position: "Engineer", status: "INTERVIEWING", company: { id: "co-1", name: "Acme" } },
+      });
+
+      const ics = await service.calendarForInterview("user-1", "app-1", "int-1");
+
+      expect(repository.findApplicationForUser).toHaveBeenCalledWith("app-1", "user-1");
+      expect(repository.findWithApplicationById).toHaveBeenCalledWith("int-1", "app-1");
+      expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    });
+
+    it("throws NotFoundException for an application that isn't the user's", async () => {
+      repository.findApplicationForUser.mockResolvedValue(null);
+
+      await expect(service.calendarForInterview("user-1", "app-1", "int-1")).rejects.toThrow(NotFoundException);
+      expect(repository.findWithApplicationById).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException for a cancelled or unknown interview", async () => {
+      repository.findApplicationForUser.mockResolvedValue({ id: "app-1" });
+      repository.findWithApplicationById.mockResolvedValue(null);
+
+      await expect(service.calendarForInterview("user-1", "app-1", "int-1")).rejects.toThrow(NotFoundException);
     });
   });
 

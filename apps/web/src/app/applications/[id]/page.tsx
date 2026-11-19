@@ -13,6 +13,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { InterviewList } from "@/components/interview-list";
 import { ApplicationForm } from "@/components/application-form";
 import { ApiError } from "@/lib/api-client";
+import { interviewCalendarHref } from "@/lib/calendar";
 import { formatDate, formatSalary, formatWorkMode } from "@/lib/format";
 import { serverApiFetch } from "@/lib/session";
 import {
@@ -84,6 +85,7 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         createAction={createInterview.bind(null, id)}
         updateAction={(interviewId) => updateInterview.bind(null, id, interviewId)}
         cancelAction={(interviewId) => cancelInterview.bind(null, id, interviewId)}
+        calendarHref={(interviewId) => interviewCalendarHref(id, interviewId)}
       />
       <ActivityTimeline
         activities={activities}
