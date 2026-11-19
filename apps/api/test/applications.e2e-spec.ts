@@ -92,6 +92,84 @@ describe("Applications (e2e)", () => {
     expect(listAfterDelete.body).toEqual([]);
   });
 
+  describe("salary and location", () => {
+    // A fresh user, so the owner's list stays as the other tests expect it.
+    let salaryUser: string;
+    beforeAll(async () => {
+      salaryUser = await registerAndGetAccessCookie();
+    });
+
+    it("stores them and returns amounts as exact two-place strings", async () => {
+      const server = app.getHttpServer();
+
+      const createRes = await request(server)
+        .post("/applications")
+        .set("Cookie", [salaryUser])
+        .send({
+          position: "Platform Engineer",
+          companyName: `E2E Co ${randomUUID()}`,
+          location: "Berlin",
+          workMode: "HYBRID",
+          salaryMin: "60000",
+          salaryMax: "75000.5",
+          salaryCurrency: "eur",
+          salaryPeriod: "YEAR",
+        })
+        .expect(201);
+      expect(createRes.body).toEqual(
+        expect.objectContaining({
+          location: "Berlin",
+          workMode: "HYBRID",
+          salaryMin: "60000.00",
+          salaryMax: "75000.50",
+          salaryCurrency: "EUR",
+          salaryPeriod: "YEAR",
+        }),
+      );
+      const id: string = createRes.body.id;
+
+      // A partial patch is checked against the stored minimum.
+      await request(server)
+        .patch(`/applications/${id}`)
+        .set("Cookie", [salaryUser])
+        .send({ salaryMax: "50000" })
+        .expect(400);
+
+      const clearRes = await request(server)
+        .patch(`/applications/${id}`)
+        .set("Cookie", [salaryUser])
+        .send({ salaryMin: null, salaryMax: null, workMode: null })
+        .expect(200);
+      expect(clearRes.body).toEqual(
+        expect.objectContaining({
+          location: "Berlin",
+          workMode: null,
+          salaryMin: null,
+          salaryMax: null,
+          salaryCurrency: null,
+          salaryPeriod: null,
+        }),
+      );
+    });
+
+    it("rejects a salary without a currency, a reversed range and a malformed amount", async () => {
+      const server = app.getHttpServer();
+      const base = { position: "Engineer", companyName: `E2E Co ${randomUUID()}` };
+
+      for (const salary of [
+        { salaryMin: "50000", salaryPeriod: "YEAR" },
+        { salaryMin: "80000", salaryMax: "60000", salaryCurrency: "EUR", salaryPeriod: "YEAR" },
+        { salaryMin: "60,000", salaryCurrency: "EUR", salaryPeriod: "YEAR" },
+      ]) {
+        await request(server)
+          .post("/applications")
+          .set("Cookie", [salaryUser])
+          .send({ ...base, ...salary })
+          .expect(400);
+      }
+    });
+  });
+
   it("hides one user's application from another user", async () => {
     const server = app.getHttpServer();
 
