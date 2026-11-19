@@ -1,4 +1,4 @@
-import type { ApplicationStatus } from "@job-tracker/types";
+import type { Application, ApplicationStatus, SalaryPeriod, WorkMode } from "@job-tracker/types";
 
 /** "INTERVIEWING" -> "Interviewing" */
 export function formatStatus(status: ApplicationStatus): string {
@@ -9,4 +9,40 @@ export function formatStatus(status: ApplicationStatus): string {
 export function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "short", day: "numeric" });
+}
+
+const WORK_MODE_LABELS: Record<WorkMode, string> = { ONSITE: "On-site", HYBRID: "Hybrid", REMOTE: "Remote" };
+
+export function formatWorkMode(mode: WorkMode): string {
+  return WORK_MODE_LABELS[mode];
+}
+
+export const SALARY_PERIOD_LABELS: Record<SalaryPeriod, string> = { YEAR: "year", MONTH: "month", HOUR: "hour" };
+
+function formatAmount(amount: string, currency: string): string {
+  const value = Number(amount);
+  const fractionDigits = Number.isInteger(value) ? 0 : 2;
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(value);
+  } catch {
+    // A well-formed but unknown code (e.g. "ABC") makes Intl throw.
+    return `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
+  }
+}
+
+type SalaryFields = Pick<Application, "salaryMin" | "salaryMax" | "salaryCurrency" | "salaryPeriod">;
+
+/** "€60,000–€75,000 / year", or null when there's no salary. */
+export function formatSalary({ salaryMin, salaryMax, salaryCurrency, salaryPeriod }: SalaryFields): string | null {
+  if (!(salaryMin || salaryMax) || !salaryCurrency || !salaryPeriod) return null;
+  const min = salaryMin && formatAmount(salaryMin, salaryCurrency);
+  const max = salaryMax && formatAmount(salaryMax, salaryCurrency);
+  const range =
+    min && max ? (min === max ? min : `${min}–${max}`) : min ? `from ${min}` : `up to ${max}`;
+  return `${range} / ${SALARY_PERIOD_LABELS[salaryPeriod]}`;
 }

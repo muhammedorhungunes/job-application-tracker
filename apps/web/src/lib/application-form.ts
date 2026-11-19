@@ -39,6 +39,17 @@ export function formatTechStack(techStack: string[]): string {
   return techStack.join(", ");
 }
 
+/** The API returns "65000.00"; the input shows "65000" unless there are cents. */
+export function amountToInput(amount: string | null): string {
+  return amount ? amount.replace(/\.00$/, "") : "";
+}
+
+/** "65000" and "65000.00" are the same amount; anything malformed counts as different so the schema reports it. */
+function sameAmount(input: string, stored: string | null): boolean {
+  if (!input || !stored) return !input && !stored;
+  return /^\d+(\.\d+)?$/.test(input) && Number(input) === Number(stored);
+}
+
 /**
  * Empty inputs become "not provided" — the shared schema's `min(1)` would
  * otherwise reject an untouched optional field as an empty string.
@@ -57,6 +68,12 @@ export function parseCreateApplicationForm(formData: FormData) {
     notes: optional("notes"),
     appliedAt: appliedAt ? dateToIso(appliedAt) : undefined,
     techStack: techStack.length > 0 ? techStack : undefined,
+    location: optional("location"),
+    workMode: optional("workMode"),
+    salaryMin: optional("salaryMin"),
+    salaryMax: optional("salaryMax"),
+    salaryCurrency: optional("salaryCurrency"),
+    salaryPeriod: optional("salaryPeriod"),
   });
 }
 
@@ -78,7 +95,7 @@ export function parseUpdateApplicationForm(formData: FormData, current: Applicat
   const status = field(formData, "status");
   if (status !== current.status) changes.status = status;
 
-  for (const key of ["source", "url", "notes"] as const) {
+  for (const key of ["source", "url", "notes", "location", "workMode"] as const) {
     const value = field(formData, key) || null;
     if (value !== current[key]) changes[key] = value;
   }
@@ -92,6 +109,23 @@ export function parseUpdateApplicationForm(formData: FormData, current: Applicat
 
   const techStack = parseTechStack(field(formData, "techStack"));
   if (formatTechStack(techStack) !== formatTechStack(current.techStack)) changes.techStack = techStack;
+
+  // The salary fields go together: if anything about the salary changed, all
+  // four are sent so the schema can check them as a whole (min <= max, a
+  // currency for an amount). Currency / period alone don't matter while
+  // there's no amount, since the form always submits their defaults.
+  const salary = {
+    salaryMin: field(formData, "salaryMin") || null,
+    salaryMax: field(formData, "salaryMax") || null,
+    salaryCurrency: field(formData, "salaryCurrency").toUpperCase() || null,
+    salaryPeriod: field(formData, "salaryPeriod") || null,
+  };
+  const amountsChanged =
+    !sameAmount(salary.salaryMin ?? "", current.salaryMin) || !sameAmount(salary.salaryMax ?? "", current.salaryMax);
+  const hasAmount = Boolean(salary.salaryMin || salary.salaryMax);
+  const unitChanged =
+    hasAmount && (salary.salaryCurrency !== current.salaryCurrency || salary.salaryPeriod !== current.salaryPeriod);
+  if (amountsChanged || unitChanged) Object.assign(changes, salary);
 
   return UpdateApplicationInputSchema.safeParse(changes);
 }
