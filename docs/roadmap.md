@@ -168,8 +168,9 @@ merged. The deploy stays the one open Phase 1 item.
     PATCH is checked against the stored values. The detail page shows
     "Berlin · Hybrid · €60,000–€75,000 / year". The AI parser now fills
     location, work mode and salary instead of writing the location into
-    notes (parses stored before this read back as failed). Not yet in CSV,
-    board filters or Kanban cards. No new libraries.
+    notes (parses stored before this read back as failed). CSV, board
+    filters and Kanban cards followed on 2026-11-22 (see below). No new
+    libraries.
 
 - **Interview calendar export**
   - **Status (2026-11-20):** done on `feat/interview-calendar`. Interviews
@@ -182,6 +183,17 @@ merged. The deploy stays the one open Phase 1 item.
     app proxies both through route handlers. Download only, no subscription
     feed. Hand-written RFC 5545 output (escaping, 75-byte folding). No schema
     change, no new libraries.
+- **Salary and location across the app**
+  - **Status (2026-11-22):** done on `feat/salary-location-everywhere`. The
+    CSV export and import have `location`, `workMode`, `salaryMin`,
+    `salaryMax`, `salaryCurrency` and `salaryPeriod` columns (after
+    `techStack`); import upper-cases work mode and period, checks salary with
+    the same rules as the form, and still accepts older files without these
+    columns. The board search `q` also matches the location, and a new
+    `workMode` filter (one value) joins the filter bar and the CSV export.
+    Kanban cards show "Berlin · Hybrid" and the salary range when set; the
+    card and the detail page share `formatLocation`. No salary filter (no
+    currency conversion). No schema change, no new libraries.
 
 ## Out of scope until explicitly requested
 

@@ -46,3 +46,9 @@ export function formatSalary({ salaryMin, salaryMax, salaryCurrency, salaryPerio
     min && max ? (min === max ? min : `${min}–${max}`) : min ? `from ${min}` : `up to ${max}`;
   return `${range} / ${SALARY_PERIOD_LABELS[salaryPeriod]}`;
 }
+
+/** "Berlin · Hybrid", skipping whatever isn't set; null when neither is. */
+export function formatLocation({ location, workMode }: Pick<Application, "location" | "workMode">): string | null {
+  const parts = [location, workMode && formatWorkMode(workMode)].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}

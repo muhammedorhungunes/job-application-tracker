@@ -14,7 +14,7 @@ import { InterviewList } from "@/components/interview-list";
 import { ApplicationForm } from "@/components/application-form";
 import { ApiError } from "@/lib/api-client";
 import { interviewCalendarHref } from "@/lib/calendar";
-import { formatDate, formatSalary, formatWorkMode } from "@/lib/format";
+import { formatDate, formatLocation, formatSalary } from "@/lib/format";
 import { serverApiFetch } from "@/lib/session";
 import {
   addNote,
@@ -56,11 +56,7 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
     getSubresource<Interview>(`${base}/interviews`, InterviewSchema.array()),
   ]);
   // "Berlin · Hybrid · €60,000–€75,000 / year", skipping whatever isn't set.
-  const details = [
-    application.location,
-    application.workMode && formatWorkMode(application.workMode),
-    formatSalary(application),
-  ].filter((part): part is string => Boolean(part));
+  const details = [formatLocation(application), formatSalary(application)].filter((part): part is string => Boolean(part));
 
   return (
     // The layout is wide for the Kanban board; forms read better narrower.

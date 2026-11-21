@@ -7,10 +7,13 @@ describe("parseFilters", () => {
   });
 
   it("parses every filter, accepting a single or repeated status", () => {
-    expect(parseFilters({ q: " acme ", status: "OFFER", tech: "Go", from: "2026-11-01", to: "2026-11-30" })).toEqual({
+    expect(
+      parseFilters({ q: " acme ", status: "OFFER", tech: "Go", workMode: "REMOTE", from: "2026-11-01", to: "2026-11-30" }),
+    ).toEqual({
       q: "acme",
       status: ["OFFER"],
       tech: "Go",
+      workMode: "REMOTE",
       from: "2026-11-01",
       to: "2026-11-30",
     });
@@ -18,11 +21,11 @@ describe("parseFilters", () => {
   });
 
   it("treats empty form fields as no filter", () => {
-    expect(parseFilters({ q: "", tech: "", from: "", to: "" })).toEqual({});
+    expect(parseFilters({ q: "", tech: "", workMode: "", from: "", to: "" })).toEqual({});
   });
 
   it("drops invalid fields but keeps the valid ones", () => {
-    expect(parseFilters({ q: "acme", status: "NOPE", from: "2026-02-31" })).toEqual({ q: "acme" });
+    expect(parseFilters({ q: "acme", status: "NOPE", workMode: "OFFICE", from: "2026-02-31" })).toEqual({ q: "acme" });
     expect(parseFilters({ tech: "Go", from: "2026-11-02", to: "2026-11-01" })).toEqual({ tech: "Go", from: "2026-11-02" });
   });
 
@@ -38,10 +41,16 @@ describe("toQueryString / hasActiveFilters", () => {
   });
 
   it("encodes values and repeats status, and round-trips through parseFilters", () => {
-    const filters = { q: "c++ & co", status: ["APPLIED" as const, "OFFER" as const], tech: "Node.js", to: "2026-11-30" };
+    const filters = {
+      q: "c++ & co",
+      status: ["APPLIED" as const, "OFFER" as const],
+      tech: "Node.js",
+      workMode: "ONSITE" as const,
+      to: "2026-11-30",
+    };
     const query = toQueryString(filters);
 
-    expect(query).toBe("?q=c%2B%2B+%26+co&status=APPLIED&status=OFFER&tech=Node.js&to=2026-11-30");
+    expect(query).toBe("?q=c%2B%2B+%26+co&status=APPLIED&status=OFFER&tech=Node.js&workMode=ONSITE&to=2026-11-30");
     expect(hasActiveFilters(filters)).toBe(true);
 
     const params = new URLSearchParams(query);

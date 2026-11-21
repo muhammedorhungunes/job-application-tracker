@@ -132,8 +132,8 @@ need no queue bookkeeping. `Interview.remindedForScheduledAt` records which
 time was reminded about; a reschedule makes it differ, so the new time is
 reminded again.
 
-**Board filters live in the URL.** Search, status, tech and date filters
-are query params on `/applications`, read by the server component and passed
+**Board filters live in the URL.** Search (position, company or location),
+status, tech, work mode and date filters are query params on `/applications`, read by the server component and passed
 through to `GET /applications`, so a filtered board survives a refresh and can
 be bookmarked. The filter bar is a plain `<form method="get">`, so it needs no
 client JavaScript. Both sides parse the params with the same zod schema; the
@@ -181,7 +181,11 @@ period (year / month / hour) are checked together by one shared function,
 `salaryIssues`, which the zod schemas use and the service runs again on the
 stored values merged with a PATCH. A currency or period without an amount is
 dropped. The AI parser also extracts salary, location and work mode; the web
-app drops anything unusable before pre-filling the form.
+app drops anything unusable before pre-filling the form. Location, work mode
+and salary show on the Kanban cards and are columns in the CSV export and
+import (amounts as `65000.00`, enums like `REMOTE` / `YEAR`; import accepts
+lower case). There's no salary filter: amounts in different currencies and
+periods can't be compared without conversion.
 
 **Calendar files, not a feed.** Interviews download as `.ics` files built by
 a small RFC 5545 writer in `interviews/ics.ts` (escaping and 75-byte line
@@ -206,8 +210,8 @@ plain `fetch` instead of its SDK, the charts use no library, and drag and drop
 - **Import can leave unused companies.** Companies are found or created
   before the import transaction, so a failed write can leave a new, unused
   `Company` row. Harmless for a single user.
-- **Salary isn't in CSV, filters or the board yet.** It's on the detail
-  page and form only; there's no currency conversion either.
+- **No salary filter or currency conversion.** Salaries are shown as
+  entered; the board can't filter or sort by them.
 - **Calendar events are always one hour.** Interviews have no stored
   duration. Changes don't sync on their own; download the file again.
 - **Not deployed yet.** The Railway deploy is on hold while Railway has new

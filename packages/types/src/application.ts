@@ -195,7 +195,7 @@ const DateOnlySchema = z
  */
 export const ApplicationListQuerySchema = z
   .object({
-    /** Case-insensitive substring of the position or the company name. */
+    /** Case-insensitive substring of the position, the company name or the location. */
     q: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
     // A repeated query key arrives as an array, a single one as a string.
     status: z.preprocess(
@@ -204,6 +204,7 @@ export const ApplicationListQuerySchema = z
     ),
     /** Exact tech stack entry (case-sensitive). */
     tech: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(50).optional()),
+    workMode: z.preprocess(emptyToUndefined, WorkModeSchema.optional()),
     from: z.preprocess(emptyToUndefined, DateOnlySchema.optional()),
     to: z.preprocess(emptyToUndefined, DateOnlySchema.optional()),
   })

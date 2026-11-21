@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSalary, formatWorkMode } from "./format";
+import { formatLocation, formatSalary, formatWorkMode } from "./format";
 
 const salary = { salaryMin: "60000.00", salaryMax: "75000.00", salaryCurrency: "EUR", salaryPeriod: "YEAR" } as const;
 
@@ -32,5 +32,17 @@ describe("formatWorkMode", () => {
   it("labels each mode", () => {
     expect(formatWorkMode("ONSITE")).toBe("On-site");
     expect(formatWorkMode("REMOTE")).toBe("Remote");
+  });
+});
+
+describe("formatLocation", () => {
+  it("joins location and work mode, skipping what isn't set", () => {
+    expect(formatLocation({ location: "Berlin", workMode: "HYBRID" })).toBe("Berlin · Hybrid");
+    expect(formatLocation({ location: "Berlin", workMode: null })).toBe("Berlin");
+    expect(formatLocation({ location: null, workMode: "REMOTE" })).toBe("Remote");
+  });
+
+  it("is null when neither is set", () => {
+    expect(formatLocation({ location: null, workMode: null })).toBeNull();
   });
 });

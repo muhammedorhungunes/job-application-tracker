@@ -405,12 +405,16 @@ describe("Applications (e2e)", () => {
         companyName: `Globex ${tag}`,
         techStack: ["React", "TypeScript"],
         appliedAt: "2026-09-15T10:00:00.000Z",
+        location: `Berlin ${tag}`,
+        workMode: "REMOTE",
       });
       await create("backend", {
         position: "Backend Engineer",
         status: "INTERVIEWING",
         techStack: ["Go"],
         appliedAt: "2026-10-31T23:30:00.000Z",
+        location: `Hamburg ${tag}`,
+        workMode: "HYBRID",
       });
       // No appliedAt: the date filter falls back to createdAt (today).
       await create("undated", { position: "Platform Engineer", status: "OFFER", techStack: ["react"] });
@@ -424,6 +428,17 @@ describe("Applications (e2e)", () => {
       expect(await list("q=frontend")).toEqual(pick("frontend"));
       expect(await list(`q=GLOBEX%20${tag}`)).toEqual(pick("frontend"));
       expect(await list("q=engineer")).toEqual(pick("backend", "undated"));
+    });
+
+    it("searches the location too", async () => {
+      expect(await list(`q=berlin%20${tag}`)).toEqual(pick("frontend"));
+      expect(await list(`q=${tag}`)).toEqual(pick("frontend", "backend", "undated"));
+    });
+
+    it("filters by work mode", async () => {
+      expect(await list("workMode=REMOTE")).toEqual(pick("frontend"));
+      expect(await list("workMode=HYBRID")).toEqual(pick("backend"));
+      expect(await list("workMode=ONSITE")).toEqual([]);
     });
 
     it("treats LIKE wildcards in the search literally", async () => {
@@ -449,12 +464,13 @@ describe("Applications (e2e)", () => {
     });
 
     it("combines filters with AND and ignores empty form fields", async () => {
-      expect(await list("q=engineer&status=OFFER&tech=&from=&to=")).toEqual(pick("undated"));
+      expect(await list("q=engineer&status=OFFER&tech=&workMode=&from=&to=")).toEqual(pick("undated"));
+      expect(await list("q=engineer&workMode=HYBRID")).toEqual(pick("backend"));
     });
 
     it("rejects invalid filters", async () => {
       const server = app.getHttpServer();
-      for (const query of ["status=NOPE", "from=2026-02-31", "from=2026-11-02&to=2026-11-01"]) {
+      for (const query of ["status=NOPE", "workMode=OFFICE", "from=2026-02-31", "from=2026-11-02&to=2026-11-01"]) {
         await request(server).get(`/applications?${query}`).set("Cookie", [cookie]).expect(400);
       }
     });
@@ -477,9 +493,9 @@ describe("Applications (e2e)", () => {
     let cookie: string;
     const company = `CSV Co ${randomUUID()}`;
     const csv = [
-      "position,company,status,appliedAt,techStack,notes",
-      `Backend Engineer,${company},interviewing,2026-11-02,Go; Rust,"Recruiter said: ""next week"""`,
-      `Frontend Engineer,${company},,,,=1+1`,
+      "position,company,status,appliedAt,techStack,location,workMode,salaryMin,salaryMax,salaryCurrency,salaryPeriod,notes",
+      `Backend Engineer,${company},interviewing,2026-11-02,Go; Rust,Berlin,hybrid,60000,75000.5,eur,year,"Recruiter said: ""next week"""`,
+      `Frontend Engineer,${company},,,,,,,,,,=1+1`,
     ].join("\r\n");
 
     beforeAll(async () => {
@@ -523,6 +539,12 @@ describe("Applications (e2e)", () => {
             appliedAt: "2026-11-02T00:00:00.000Z",
             techStack: ["Go", "Rust"],
             notes: 'Recruiter said: "next week"',
+            location: "Berlin",
+            workMode: "HYBRID",
+            salaryMin: "60000.00",
+            salaryMax: "75000.50",
+            salaryCurrency: "EUR",
+            salaryPeriod: "YEAR",
           }),
           expect.objectContaining({ position: "Frontend Engineer", status: "APPLIED", notes: "=1+1" }),
         ]),
@@ -541,6 +563,7 @@ describe("Applications (e2e)", () => {
       expect(res.headers["content-disposition"]).toMatch(/^attachment; filename="applications-\d{4}-\d{2}-\d{2}\.csv"$/);
       expect(res.text).toContain("Backend Engineer");
       expect(res.text).toContain("'=1+1");
+      expect(res.text).toContain("Berlin,HYBRID,60000.00,75000.50,EUR,YEAR");
 
       const filtered = await request(server)
         .get("/applications/export?status=INTERVIEWING")

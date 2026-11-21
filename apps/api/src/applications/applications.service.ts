@@ -63,6 +63,7 @@ function toListFilter(query: ApplicationListQuery): ApplicationListFilter {
     search: query.q,
     statuses: query.status,
     tech: query.tech,
+    workMode: query.workMode,
     dateFrom: query.from ? new Date(`${query.from}T00:00:00.000Z`) : undefined,
     dateBefore: query.to ? new Date(new Date(`${query.to}T00:00:00.000Z`).getTime() + DAY_MS) : undefined,
   };

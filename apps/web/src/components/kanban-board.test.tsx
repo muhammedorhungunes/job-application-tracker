@@ -51,4 +51,31 @@ describe("KanbanBoard", () => {
     expect(within(offer).getByRole("link", { name: /frontend engineer/i })).toHaveAttribute("href", "/applications/b");
     expect(within(offer).queryByText("Backend Engineer")).not.toBeInTheDocument();
   });
+
+  it("shows location, work mode and salary on a card only when they're set", () => {
+    render(
+      <KanbanBoard
+        applications={[
+          application({
+            id: "a",
+            position: "Backend Engineer",
+            location: "Berlin",
+            workMode: "HYBRID",
+            salaryMin: "60000.00",
+            salaryMax: "75000.00",
+            salaryCurrency: "EUR",
+            salaryPeriod: "YEAR",
+          }),
+          application({ id: "b", position: "Frontend Engineer" }),
+        ]}
+      />,
+    );
+
+    const withDetails = screen.getByRole("link", { name: /backend engineer/i });
+    expect(within(withDetails).getByText("Berlin · Hybrid")).toBeInTheDocument();
+    expect(within(withDetails).getByText("€60,000–€75,000 / year")).toBeInTheDocument();
+
+    const without = screen.getByRole("link", { name: /frontend engineer/i });
+    expect(without.querySelectorAll("p")).toHaveLength(3);
+  });
 });

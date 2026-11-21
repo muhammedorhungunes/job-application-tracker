@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma, type ApplicationStatus, type Company } from "@prisma/client";
+import { Prisma, type ApplicationStatus, type Company, type WorkMode } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { StatsRow } from "./application-stats";
 
@@ -24,6 +24,7 @@ export type ApplicationListFilter = {
   search?: string;
   statuses?: ApplicationStatus[];
   tech?: string;
+  workMode?: WorkMode;
   /** Inclusive lower / exclusive upper bound on appliedAt, falling back to createdAt. */
   dateFrom?: Date;
   dateBefore?: Date;
@@ -205,7 +206,7 @@ function toWhere(filter: ApplicationListFilter): Prisma.ApplicationWhereInput {
     // Prisma passes `contains` to ILIKE without escaping, so "%" or "_" would match anything.
     const escaped = filter.search.replace(/[\\%_]/g, "\\$&");
     const contains = { contains: escaped, mode: "insensitive" } as const;
-    and.push({ OR: [{ position: contains }, { company: { name: contains } }] });
+    and.push({ OR: [{ position: contains }, { company: { name: contains } }, { location: contains }] });
   }
   if (filter.dateFrom || filter.dateBefore) {
     const range = { gte: filter.dateFrom, lt: filter.dateBefore };
@@ -214,6 +215,7 @@ function toWhere(filter: ApplicationListFilter): Prisma.ApplicationWhereInput {
   return {
     ...(filter.statuses ? { status: { in: filter.statuses } } : {}),
     ...(filter.tech ? { techStack: { has: filter.tech } } : {}),
+    ...(filter.workMode ? { workMode: filter.workMode } : {}),
     ...(and.length > 0 ? { AND: and } : {}),
   };
 }
