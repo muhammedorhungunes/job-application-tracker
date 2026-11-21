@@ -146,19 +146,25 @@ describe("ApplicationsService", () => {
         search: undefined,
         statuses: undefined,
         tech: undefined,
+        workMode: undefined,
         dateFrom: undefined,
         dateBefore: undefined,
       });
     });
 
-    it("passes search, statuses and tech through unchanged", async () => {
+    it("passes search, statuses, tech and work mode through unchanged", async () => {
       applicationsRepository.findManyByUserId.mockResolvedValue([]);
 
-      await applicationsService.findAllForUser("user-1", { q: "acme", status: ["APPLIED", "OFFER"], tech: "React" });
+      await applicationsService.findAllForUser("user-1", {
+        q: "acme",
+        status: ["APPLIED", "OFFER"],
+        tech: "React",
+        workMode: "REMOTE",
+      });
 
       expect(applicationsRepository.findManyByUserId).toHaveBeenCalledWith(
         "user-1",
-        expect.objectContaining({ search: "acme", statuses: ["APPLIED", "OFFER"], tech: "React" }),
+        expect.objectContaining({ search: "acme", statuses: ["APPLIED", "OFFER"], tech: "React", workMode: "REMOTE" }),
       );
     });
 

@@ -405,12 +405,16 @@ describe("Applications (e2e)", () => {
         companyName: `Globex ${tag}`,
         techStack: ["React", "TypeScript"],
         appliedAt: "2026-09-15T10:00:00.000Z",
+        location: `Berlin ${tag}`,
+        workMode: "REMOTE",
       });
       await create("backend", {
         position: "Backend Engineer",
         status: "INTERVIEWING",
         techStack: ["Go"],
         appliedAt: "2026-10-31T23:30:00.000Z",
+        location: `Hamburg ${tag}`,
+        workMode: "HYBRID",
       });
       // No appliedAt: the date filter falls back to createdAt (today).
       await create("undated", { position: "Platform Engineer", status: "OFFER", techStack: ["react"] });
@@ -424,6 +428,17 @@ describe("Applications (e2e)", () => {
       expect(await list("q=frontend")).toEqual(pick("frontend"));
       expect(await list(`q=GLOBEX%20${tag}`)).toEqual(pick("frontend"));
       expect(await list("q=engineer")).toEqual(pick("backend", "undated"));
+    });
+
+    it("searches the location too", async () => {
+      expect(await list(`q=berlin%20${tag}`)).toEqual(pick("frontend"));
+      expect(await list(`q=${tag}`)).toEqual(pick("frontend", "backend", "undated"));
+    });
+
+    it("filters by work mode", async () => {
+      expect(await list("workMode=REMOTE")).toEqual(pick("frontend"));
+      expect(await list("workMode=HYBRID")).toEqual(pick("backend"));
+      expect(await list("workMode=ONSITE")).toEqual([]);
     });
 
     it("treats LIKE wildcards in the search literally", async () => {
@@ -449,12 +464,13 @@ describe("Applications (e2e)", () => {
     });
 
     it("combines filters with AND and ignores empty form fields", async () => {
-      expect(await list("q=engineer&status=OFFER&tech=&from=&to=")).toEqual(pick("undated"));
+      expect(await list("q=engineer&status=OFFER&tech=&workMode=&from=&to=")).toEqual(pick("undated"));
+      expect(await list("q=engineer&workMode=HYBRID")).toEqual(pick("backend"));
     });
 
     it("rejects invalid filters", async () => {
       const server = app.getHttpServer();
-      for (const query of ["status=NOPE", "from=2026-02-31", "from=2026-11-02&to=2026-11-01"]) {
+      for (const query of ["status=NOPE", "workMode=OFFICE", "from=2026-02-31", "from=2026-11-02&to=2026-11-01"]) {
         await request(server).get(`/applications?${query}`).set("Cookie", [cookie]).expect(400);
       }
     });
