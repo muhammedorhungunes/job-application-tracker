@@ -27,6 +27,12 @@ export function applicationsToCsv(applications: readonly Application[]): string 
     // The form only sets a day, so the time part would just be noise in a spreadsheet.
     appliedAt: app.appliedAt?.slice(0, 10) ?? "",
     techStack: app.techStack.join(`${CSV_TECH_STACK_SEPARATOR} `),
+    location: app.location ?? "",
+    workMode: app.workMode ?? "",
+    salaryMin: app.salaryMin ?? "",
+    salaryMax: app.salaryMax ?? "",
+    salaryCurrency: app.salaryCurrency ?? "",
+    salaryPeriod: app.salaryPeriod ?? "",
     notes: app.notes ?? "",
     createdAt: app.createdAt,
     updatedAt: app.updatedAt,
@@ -121,6 +127,12 @@ export function csvToImportRows(text: string): CsvImportParseResult {
       appliedAt,
       notes: cell("notes"),
       techStack: techStack && techStack.length > 0 ? techStack : undefined,
+      location: cell("location"),
+      workMode: cell("workMode")?.toUpperCase(),
+      salaryMin: cell("salaryMin"),
+      salaryMax: cell("salaryMax"),
+      salaryCurrency: cell("salaryCurrency"),
+      salaryPeriod: cell("salaryPeriod")?.toUpperCase(),
     });
 
     if (!parsed.success) {

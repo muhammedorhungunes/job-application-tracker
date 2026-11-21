@@ -477,9 +477,9 @@ describe("Applications (e2e)", () => {
     let cookie: string;
     const company = `CSV Co ${randomUUID()}`;
     const csv = [
-      "position,company,status,appliedAt,techStack,notes",
-      `Backend Engineer,${company},interviewing,2026-11-02,Go; Rust,"Recruiter said: ""next week"""`,
-      `Frontend Engineer,${company},,,,=1+1`,
+      "position,company,status,appliedAt,techStack,location,workMode,salaryMin,salaryMax,salaryCurrency,salaryPeriod,notes",
+      `Backend Engineer,${company},interviewing,2026-11-02,Go; Rust,Berlin,hybrid,60000,75000.5,eur,year,"Recruiter said: ""next week"""`,
+      `Frontend Engineer,${company},,,,,,,,,,=1+1`,
     ].join("\r\n");
 
     beforeAll(async () => {
@@ -523,6 +523,12 @@ describe("Applications (e2e)", () => {
             appliedAt: "2026-11-02T00:00:00.000Z",
             techStack: ["Go", "Rust"],
             notes: 'Recruiter said: "next week"',
+            location: "Berlin",
+            workMode: "HYBRID",
+            salaryMin: "60000.00",
+            salaryMax: "75000.50",
+            salaryCurrency: "EUR",
+            salaryPeriod: "YEAR",
           }),
           expect.objectContaining({ position: "Frontend Engineer", status: "APPLIED", notes: "=1+1" }),
         ]),
@@ -541,6 +547,7 @@ describe("Applications (e2e)", () => {
       expect(res.headers["content-disposition"]).toMatch(/^attachment; filename="applications-\d{4}-\d{2}-\d{2}\.csv"$/);
       expect(res.text).toContain("Backend Engineer");
       expect(res.text).toContain("'=1+1");
+      expect(res.text).toContain("Berlin,HYBRID,60000.00,75000.50,EUR,YEAR");
 
       const filtered = await request(server)
         .get("/applications/export?status=INTERVIEWING")

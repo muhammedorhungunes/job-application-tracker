@@ -10,6 +10,12 @@ const application: Application = {
   appliedAt: "2026-11-02T00:00:00.000Z",
   notes: "=HYPERLINK(\"x\")",
   techStack: ["TypeScript", "NestJS"],
+  location: "Berlin",
+  workMode: "HYBRID",
+  salaryMin: "60000.00",
+  salaryMax: "75000.00",
+  salaryCurrency: "EUR",
+  salaryPeriod: "YEAR",
   createdAt: "2026-11-02T08:00:00.000Z",
   updatedAt: "2026-11-03T09:00:00.000Z",
   company: { id: "c-1", name: "Acme, Inc" },
@@ -19,11 +25,31 @@ describe("applicationsToCsv", () => {
   it("writes the header and one row per application", () => {
     const csv = applicationsToCsv([application]);
     const [header, row] = csv.replace("\uFEFF", "").split("\r\n");
-    expect(header).toBe("position,company,status,source,url,appliedAt,techStack,notes,createdAt,updatedAt");
+    expect(header).toBe(
+      "position,company,status,source,url,appliedAt,techStack,location,workMode,salaryMin,salaryMax,salaryCurrency," +
+        "salaryPeriod,notes,createdAt,updatedAt",
+    );
     expect(row).toBe(
       'Backend Engineer,"Acme, Inc",INTERVIEWING,LinkedIn,https://example.com/job,2026-11-02,TypeScript; NestJS,' +
+        "Berlin,HYBRID,60000.00,75000.00,EUR,YEAR," +
         "\"'=HYPERLINK(\"\"x\"\")\",2026-11-02T08:00:00.000Z,2026-11-03T09:00:00.000Z",
     );
+  });
+
+  it("leaves location, work mode and salary cells empty when unset", () => {
+    const csv = applicationsToCsv([
+      {
+        ...application,
+        location: null,
+        workMode: null,
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: null,
+        salaryPeriod: null,
+      },
+    ]);
+    const row = csv.replace("\uFEFF", "").split("\r\n")[1];
+    expect(row).toContain("TypeScript; NestJS,,,,,,,");
   });
 
   it("round-trips through csvToImportRows", () => {
@@ -42,6 +68,12 @@ describe("applicationsToCsv", () => {
             appliedAt: "2026-11-02T00:00:00.000Z",
             notes: '=HYPERLINK("x")',
             techStack: ["TypeScript", "NestJS"],
+            location: "Berlin",
+            workMode: "HYBRID",
+            salaryMin: "60000.00",
+            salaryMax: "75000.00",
+            salaryCurrency: "EUR",
+            salaryPeriod: "YEAR",
           },
         },
       ],
@@ -63,6 +95,60 @@ describe("csvToImportRows", () => {
     expect(result).toEqual({
       ok: true,
       rows: [{ line: 2, input: { position: "Dev", companyName: "Acme", techStack: ["React", "Go"] } }],
+    });
+  });
+
+  it("reads location, work mode and salary, accepting lower case enum values and currency", () => {
+    const result = csvToImportRows(
+      "position,company,location,workMode,salaryMin,salaryMax,salaryCurrency,salaryPeriod\n" +
+        "Dev,Acme,Remote EU,remote,50000,,eur,month\n",
+    );
+    expect(result).toEqual({
+      ok: true,
+      rows: [
+        {
+          line: 2,
+          input: {
+            position: "Dev",
+            companyName: "Acme",
+            location: "Remote EU",
+            workMode: "REMOTE",
+            salaryMin: "50000",
+            salaryCurrency: "EUR",
+            salaryPeriod: "MONTH",
+          },
+        },
+      ],
+    });
+  });
+
+  it("reports salary problems by column", () => {
+    const result = csvToImportRows(
+      [
+        "position,company,workMode,salaryMin,salaryMax,salaryCurrency,salaryPeriod",
+        "Dev,Acme,,70000,60000,EUR,YEAR",
+        "Ops,Acme,,50000,,,",
+        "QA,Acme,office,lots,,EURO,DAY",
+      ].join("\n"),
+    );
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        { row: 2, messages: ["salaryMax: Maximum must not be below the minimum"] },
+        {
+          row: 3,
+          messages: ["salaryCurrency: Choose a currency for the salary", "salaryPeriod: Choose a period for the salary"],
+        },
+        {
+          row: 4,
+          messages: [
+            expect.stringMatching(/^workMode: /),
+            "salaryMin: Enter an amount like 65000 or 65000.50",
+            "salaryCurrency: Use a 3-letter currency code like EUR",
+            expect.stringMatching(/^salaryPeriod: /),
+          ],
+        },
+      ],
     });
   });
 
