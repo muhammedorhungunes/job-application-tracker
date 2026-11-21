@@ -2,7 +2,7 @@ import { ApplicationListQuerySchema, type ApplicationListQuery } from "@job-trac
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-const FILTER_KEYS = ["q", "status", "tech", "from", "to"] as const satisfies readonly (keyof ApplicationListQuery)[];
+const FILTER_KEYS = ["q", "status", "tech", "workMode", "from", "to"] as const satisfies readonly (keyof ApplicationListQuery)[];
 
 /**
  * Parses the board page's URL search params. A hand-edited or stale URL
@@ -32,6 +32,7 @@ export function toQueryString(filters: ApplicationListQuery): string {
   if (filters.q) params.set("q", filters.q);
   for (const status of filters.status ?? []) params.append("status", status);
   if (filters.tech) params.set("tech", filters.tech);
+  if (filters.workMode) params.set("workMode", filters.workMode);
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
   const query = params.toString();

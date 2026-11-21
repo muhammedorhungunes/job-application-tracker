@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ApplicationStatusValues, type ApplicationListQuery } from "@job-tracker/types";
+import { ApplicationStatusValues, WorkModeValues, type ApplicationListQuery } from "@job-tracker/types";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatStatus } from "@/lib/format";
+import { formatStatus, formatWorkMode } from "@/lib/format";
 
 const selectClassName = "h-9 rounded-md border border-border bg-transparent px-3 text-sm";
 
@@ -28,7 +28,7 @@ export function ApplicationFilters({ filters, techOptions }: { filters: Applicat
           <Input
             name="q"
             type="search"
-            placeholder="Position or company"
+            placeholder="Position, company or location"
             maxLength={100}
             defaultValue={filters.q ?? ""}
           />
@@ -40,6 +40,17 @@ export function ApplicationFilters({ filters, techOptions }: { filters: Applicat
             {techValues.map((tech) => (
               <option key={tech} value={tech}>
                 {tech}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Work mode</span>
+          <select name="workMode" defaultValue={filters.workMode ?? ""} className={selectClassName}>
+            <option value="">Any</option>
+            {WorkModeValues.map((mode) => (
+              <option key={mode} value={mode}>
+                {formatWorkMode(mode)}
               </option>
             ))}
           </select>

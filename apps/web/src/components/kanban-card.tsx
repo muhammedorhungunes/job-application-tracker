@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { useDraggable } from "@dnd-kit/core";
 import type { Application } from "@job-tracker/types";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatLocation, formatSalary } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const cardClassName = "block rounded-md border border-border bg-background p-3 text-sm shadow-sm";
 
 function CardContent({ application }: { application: Application }) {
+  const location = formatLocation(application);
+  const salary = formatSalary(application);
   return (
     <>
       <p className="font-medium">{application.position}</p>
       <p className="text-muted-foreground">{application.company.name}</p>
+      {location && <p className="mt-1 text-xs">{location}</p>}
+      {salary && <p className="text-xs">{salary}</p>}
       <p className="mt-2 text-xs text-muted-foreground">{formatDate(application.appliedAt)}</p>
     </>
   );
