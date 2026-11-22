@@ -3,13 +3,16 @@ import type { z } from "zod";
 import {
   ActivitySchema,
   ApplicationSchema,
+  ContactSchema,
   InterviewSchema,
   type Activity,
   type Application,
+  type Contact,
   type Interview,
 } from "@job-tracker/types";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { ContactList } from "@/components/contact-list";
 import { InterviewList } from "@/components/interview-list";
 import { ApplicationForm } from "@/components/application-form";
 import { ApiError } from "@/lib/api-client";
@@ -20,9 +23,12 @@ import {
   addNote,
   cancelInterview,
   archiveApplication,
+  createContact,
   createInterview,
+  deleteContact,
   deleteNote,
   updateApplication,
+  updateContact,
   updateInterview,
 } from "../actions";
 
@@ -50,10 +56,11 @@ async function getSubresource<T>(path: string, schema: z.ZodType<T[]>): Promise<
 export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const base = `/applications/${encodeURIComponent(id)}`;
-  const [application, activities, interviews] = await Promise.all([
+  const [application, activities, interviews, contacts] = await Promise.all([
     getApplication(id),
     getSubresource<Activity>(`${base}/activities`, ActivitySchema.array()),
     getSubresource<Interview>(`${base}/interviews`, InterviewSchema.array()),
+    getSubresource<Contact>(`${base}/contacts`, ContactSchema.array()),
   ]);
   // "Berlin · Hybrid · €60,000–€75,000 / year", skipping whatever isn't set.
   const details = [formatLocation(application), formatSalary(application)].filter((part): part is string => Boolean(part));
@@ -82,6 +89,12 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         updateAction={(interviewId) => updateInterview.bind(null, id, interviewId)}
         cancelAction={(interviewId) => cancelInterview.bind(null, id, interviewId)}
         calendarHref={(interviewId) => interviewCalendarHref(id, interviewId)}
+      />
+      <ContactList
+        contacts={contacts}
+        createAction={createContact.bind(null, id)}
+        updateAction={(contactId) => updateContact.bind(null, id, contactId)}
+        deleteAction={(contactId) => deleteContact.bind(null, id, contactId)}
       />
       <ActivityTimeline
         activities={activities}
