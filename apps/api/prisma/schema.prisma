@@ -141,6 +141,7 @@ model Application {
   activities Activity[]
   reminders  ApplicationReminder[]
   interviews Interview[]
+  contacts   Contact[]
 
   @@index([userId])
   @@index([companyId])
@@ -190,6 +191,27 @@ model Interview {
   @@index([applicationId])
   @@index([deletedAt])
   @@index([scheduledAt])
+}
+
+// A recruiter or other person at the company, per application. Reference
+// data only: no timeline entries and no Application.updatedAt bump, since
+// saving a contact isn't a follow-up for the stale reminder.
+model Contact {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  name          String
+  role          String?
+  email         String?
+  phone         String?
+  linkedinUrl   String?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  @@index([applicationId])
+  @@index([deletedAt])
 }
 
 // One row per application included in a sent reminder digest. Kept apart
