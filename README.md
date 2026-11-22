@@ -120,6 +120,11 @@ actively working on. Interviews are their own table (they can be moved or
 cancelled); notes are `NOTE` entries in `Activity`, the only kind of history
 entry that can be deleted.
 
+**Contacts don't.** Recruiters and other people are stored per application
+in their own `Contact` table. Saving one writes no history entry and leaves
+`Application.updatedAt` alone: writing down who the recruiter is isn't
+following up, so it shouldn't silence the stale reminder.
+
 **Interview times belong to the browser.** A `datetime-local` input has no
 time zone and server actions run in UTC, so the interview form converts the
 value to ISO in the browser before submitting, and times are formatted on the

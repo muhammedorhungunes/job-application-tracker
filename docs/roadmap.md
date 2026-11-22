@@ -194,6 +194,16 @@ merged. The deploy stays the one open Phase 1 item.
     Kanban cards show "Berlin · Hybrid" and the salary range when set; the
     card and the detail page share `formatLocation`. No salary filter (no
     currency conversion). No schema change, no new libraries.
+- **Contacts**
+  - **Status (2026-11-23):** done on `feat/contacts`. Each application can
+    list people at the company: name (required), role, e-mail, phone,
+    LinkedIn URL (http/https only, since it's rendered as a link) and notes,
+    in a new `Contact` model (per application, soft delete). CRUD under
+    `/applications/:applicationId/contacts`; the detail page shows them
+    between Interviews and History with mailto/tel/LinkedIn links, edit and
+    remove. Contacts write no history entries and don't bump
+    `Application.updatedAt`, so they don't count as follow-up for the stale
+    reminder. Not in CSV import/export. No new libraries.
 
 ## Out of scope until explicitly requested
 
