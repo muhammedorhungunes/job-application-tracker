@@ -6,3 +6,4 @@ export * from "./activity";
 export * from "./interview";
 export * from "./settings";
 export * from "./application-csv";
+export * from "./contact";
