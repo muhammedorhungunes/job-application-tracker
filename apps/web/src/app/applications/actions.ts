@@ -7,12 +7,14 @@ import {
   ActivitySchema,
   ApplicationSchema,
   ApplicationStatusSchema,
+  ContactSchema,
   InterviewSchema,
   type Application,
   type ApplicationStatus,
 } from "@job-tracker/types";
 import { ApiError } from "@/lib/api-client";
 import { parseCreateApplicationForm, parseUpdateApplicationForm } from "@/lib/application-form";
+import { parseCreateContactForm, parseUpdateContactForm } from "@/lib/contact";
 import { formStateFromZodError, type FormState } from "@/lib/form-state";
 import { parseCreateInterviewForm, parseNoteForm, parseUpdateInterviewForm } from "@/lib/interview";
 import { serverApiFetch } from "@/lib/session";
@@ -216,6 +218,68 @@ export async function cancelInterview(applicationId: string, interviewId: string
       method: "DELETE",
     });
   } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
+
+  revalidatePath(applicationPath(applicationId));
+}
+
+function contactsPath(applicationId: string): string {
+  return `${applicationPath(applicationId)}/contacts`;
+}
+
+export async function createContact(applicationId: string, _state: FormState, formData: FormData): Promise<FormState> {
+  const parsed = parseCreateContactForm(formData);
+  if (!parsed.success) {
+    return formStateFromZodError(parsed.error, formData);
+  }
+
+  try {
+    await serverApiFetch(contactsPath(applicationId), ContactSchema, {
+      method: "POST",
+      body: JSON.stringify(parsed.data),
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return { error: GENERIC_ERROR, values: formValues(formData) };
+  }
+
+  revalidatePath(applicationPath(applicationId));
+  return {};
+}
+
+export async function updateContact(
+  applicationId: string,
+  contactId: string,
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const parsed = parseUpdateContactForm(formData);
+  if (!parsed.success) {
+    return formStateFromZodError(parsed.error, formData);
+  }
+
+  try {
+    await serverApiFetch(`${contactsPath(applicationId)}/${encodeURIComponent(contactId)}`, ContactSchema, {
+      method: "PATCH",
+      body: JSON.stringify(parsed.data),
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return { error: GENERIC_ERROR, values: formValues(formData) };
+  }
+
+  revalidatePath(applicationPath(applicationId));
+  return { message: "Saved" };
+}
+
+export async function deleteContact(applicationId: string, contactId: string): Promise<void> {
+  try {
+    await serverApiFetch(`${contactsPath(applicationId)}/${encodeURIComponent(contactId)}`, z.undefined(), {
+      method: "DELETE",
+    });
+  } catch (error) {
+    // Already removed (e.g. in another tab) — same end result.
     if (!(error instanceof ApiError && error.status === 404)) throw error;
   }
 
