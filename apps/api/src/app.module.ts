@@ -7,6 +7,7 @@ import { AuthModule } from "./auth/auth.module";
 import { ApplicationsModule } from "./applications/applications.module";
 import { InterviewsModule } from "./interviews/interviews.module";
 import { ContactsModule } from "./contacts/contacts.module";
+import { FollowUpsModule } from "./follow-ups/follow-ups.module";
 import { AiModule } from "./ai/ai.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -25,6 +26,7 @@ import { AppService } from "./app.service";
     ApplicationsModule,
     InterviewsModule,
     ContactsModule,
+    FollowUpsModule,
     AiModule,
     NotificationsModule,
     SettingsModule,
