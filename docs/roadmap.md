@@ -204,6 +204,22 @@ merged. The deploy stays the one open Phase 1 item.
     remove. Contacts write no history entries and don't bump
     `Application.updatedAt`, so they don't count as follow-up for the stale
     reminder. Not in CSV import/export. No new libraries.
+- **Follow-up reminders**
+  - **Status (2026-11-27):** done on `feat/follow-ups`. Each application can
+    have planned follow-ups: a day (no time), a note and optionally one of
+    its contacts, in a new `FollowUp` model (soft delete). CRUD under
+    `/applications/:applicationId/follow-ups` plus `POST …/:id/done`, which
+    writes a "Followed up: …" history entry (`FOLLOW_UP_DONE`) and bumps
+    `Application.updatedAt`, so it counts for the stale reminder; planning
+    and editing don't. Done follow-ups can't be edited or reopened.
+    `GET /follow-ups/due` lists open ones due today or earlier in the
+    user's time zone (REJECTED / WITHDRAWN and deleted applications left
+    out); the board shows them above upcoming interviews and the detail page
+    marks them red. The hourly digest scan also queues one "follow-ups due"
+    e-mail per user at `REMINDER_HOUR` local; `remindedAt` sends each
+    follow-up once, and changing its day clears it. New `/settings` switch
+    `followUpRemindersEnabled`. Not in CSV, no recurring follow-ups. No new
+    libraries.
 
 ## Out of scope until explicitly requested
 
