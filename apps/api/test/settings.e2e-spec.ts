@@ -42,7 +42,7 @@ describe("Settings (e2e)", () => {
     await request(app.getHttpServer()).patch("/settings").send({ name: "X" }).expect(401);
   });
 
-  it("starts with no overrides and both reminders on", async () => {
+  it("starts with no overrides and all reminders on", async () => {
     const res = await request(app.getHttpServer()).get("/settings").set("Cookie", [cookie]).expect(200);
 
     expect(UserSettingsSchema.parse(res.body)).toEqual({
@@ -52,6 +52,7 @@ describe("Settings (e2e)", () => {
       staleDigestEnabled: true,
       staleDays: null,
       interviewRemindersEnabled: true,
+      followUpRemindersEnabled: true,
       defaults: { timeZone: config.reminderTz, staleDays: config.reminderStaleDays },
     });
   });
@@ -63,6 +64,7 @@ describe("Settings (e2e)", () => {
       staleDigestEnabled: false,
       staleDays: 14,
       interviewRemindersEnabled: false,
+      followUpRemindersEnabled: false,
     }).expect(200);
     expect(res.body).toMatchObject({
       name: "Renamed",
@@ -70,6 +72,7 @@ describe("Settings (e2e)", () => {
       staleDigestEnabled: false,
       staleDays: 14,
       interviewRemindersEnabled: false,
+      followUpRemindersEnabled: false,
     });
 
     const again = await request(app.getHttpServer()).get("/settings").set("Cookie", [cookie]).expect(200);

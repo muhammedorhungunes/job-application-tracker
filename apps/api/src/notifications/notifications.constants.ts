@@ -4,6 +4,7 @@ import { z } from "zod";
 export const REMINDERS_QUEUE = "notifications-reminders";
 export const SCAN_JOB = "scan";
 export const SEND_DIGEST_JOB = "send-digest";
+export const SEND_FOLLOW_UP_DIGEST_JOB = "send-follow-up-digest";
 // The id predates the hourly scan; kept so the upsert replaces the old daily schedule instead of adding a second one.
 export const DAILY_SCAN_SCHEDULER_ID = "daily-reminder-scan";
 export const DIGEST_SCAN_PATTERN = "0 * * * *";
@@ -28,3 +29,10 @@ export const SendInterviewReminderJobDataSchema = z.object({
   scheduledAt: z.string().datetime(),
 });
 export type SendInterviewReminderJobData = z.infer<typeof SendInterviewReminderJobDataSchema>;
+
+export const SendFollowUpDigestJobDataSchema = z.object({
+  userId: z.string().min(1),
+  /** The user's local YYYY-MM-DD when the scan queued it; keys the email's idempotency. */
+  digestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export type SendFollowUpDigestJobData = z.infer<typeof SendFollowUpDigestJobDataSchema>;

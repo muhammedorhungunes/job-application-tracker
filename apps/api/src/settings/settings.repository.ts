@@ -9,6 +9,7 @@ const settingsSelect = {
   staleDigestEnabled: true,
   staleDays: true,
   interviewRemindersEnabled: true,
+  followUpRemindersEnabled: true,
 } satisfies Prisma.UserSelect;
 
 export type SettingsRow = Prisma.UserGetPayload<{ select: typeof settingsSelect }>;

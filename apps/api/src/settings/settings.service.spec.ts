@@ -16,6 +16,7 @@ describe("SettingsService", () => {
     staleDigestEnabled: true,
     staleDays: null,
     interviewRemindersEnabled: true,
+    followUpRemindersEnabled: true,
   };
 
   beforeEach(async () => {

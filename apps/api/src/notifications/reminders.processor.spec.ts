@@ -1,6 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { UnrecoverableError, type Job } from "bullmq";
 import { EmailSendError } from "./email/email-sender";
+import { FollowUpRemindersService } from "./follow-up-reminders.service";
 import { InterviewRemindersService } from "./interview-reminders.service";
 import { RemindersProcessor } from "./reminders.processor";
 import { RemindersService } from "./reminders.service";
@@ -9,6 +10,7 @@ describe("RemindersProcessor", () => {
   let processor: RemindersProcessor;
   let service: { enqueueDigests: jest.Mock; sendDigest: jest.Mock };
   let interviewService: { enqueueDue: jest.Mock; send: jest.Mock };
+  let followUpService: { enqueueDue: jest.Mock; send: jest.Mock };
 
   const fakeJob = (name: string, data: unknown): Job<unknown> =>
     ({ name, data, attemptsMade: 0, opts: { attempts: 3 } }) as Job<unknown>;
@@ -17,19 +19,34 @@ describe("RemindersProcessor", () => {
   beforeEach(async () => {
     service = { enqueueDigests: jest.fn(), sendDigest: jest.fn() };
     interviewService = { enqueueDue: jest.fn(), send: jest.fn() };
+    followUpService = { enqueueDue: jest.fn(), send: jest.fn() };
     const module = await Test.createTestingModule({
       providers: [
         RemindersProcessor,
         { provide: RemindersService, useValue: service },
         { provide: InterviewRemindersService, useValue: interviewService },
+        { provide: FollowUpRemindersService, useValue: followUpService },
       ],
     }).compile();
     processor = module.get(RemindersProcessor);
   });
 
-  it("queues digests on a scan job", async () => {
+  it("queues stale and follow-up digests on a scan job", async () => {
     await processor.process(fakeJob("scan", undefined));
     expect(service.enqueueDigests).toHaveBeenCalledWith(expect.any(Date));
+    expect(followUpService.enqueueDue).toHaveBeenCalledWith(service.enqueueDigests.mock.calls[0][0]);
+  });
+
+  it("sends a follow-up digest with validated job data", async () => {
+    await processor.process(fakeJob("send-follow-up-digest", digestData));
+    expect(followUpService.send).toHaveBeenCalledWith(digestData, expect.any(Date));
+  });
+
+  it("fails without retry on invalid follow-up digest data", async () => {
+    await expect(processor.process(fakeJob("send-follow-up-digest", { userId: "u" }))).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
+    expect(followUpService.send).not.toHaveBeenCalled();
   });
 
   it("sends a digest with validated job data", async () => {
