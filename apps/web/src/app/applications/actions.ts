@@ -8,6 +8,7 @@ import {
   ApplicationSchema,
   ApplicationStatusSchema,
   ContactSchema,
+  FollowUpSchema,
   InterviewSchema,
   type Application,
   type ApplicationStatus,
@@ -15,6 +16,7 @@ import {
 import { ApiError } from "@/lib/api-client";
 import { parseCreateApplicationForm, parseUpdateApplicationForm } from "@/lib/application-form";
 import { parseCreateContactForm, parseUpdateContactForm } from "@/lib/contact";
+import { parseCreateFollowUpForm, parseUpdateFollowUpForm } from "@/lib/follow-up";
 import { formStateFromZodError, type FormState } from "@/lib/form-state";
 import { parseCreateInterviewForm, parseNoteForm, parseUpdateInterviewForm } from "@/lib/interview";
 import { serverApiFetch } from "@/lib/session";
@@ -284,4 +286,85 @@ export async function deleteContact(applicationId: string, contactId: string): P
   }
 
   revalidatePath(applicationPath(applicationId));
+}
+
+function followUpsPath(applicationId: string): string {
+  return `${applicationPath(applicationId)}/follow-ups`;
+}
+
+/** The board lists due follow-ups too, so both pages are refreshed. */
+function revalidateFollowUps(applicationId: string): void {
+  revalidatePath(applicationPath(applicationId));
+  revalidatePath("/applications");
+}
+
+export async function createFollowUp(applicationId: string, _state: FormState, formData: FormData): Promise<FormState> {
+  const parsed = parseCreateFollowUpForm(formData);
+  if (!parsed.success) {
+    return formStateFromZodError(parsed.error, formData);
+  }
+
+  try {
+    await serverApiFetch(followUpsPath(applicationId), FollowUpSchema, {
+      method: "POST",
+      body: JSON.stringify(parsed.data),
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return { error: GENERIC_ERROR, values: formValues(formData) };
+  }
+
+  revalidateFollowUps(applicationId);
+  return {};
+}
+
+export async function updateFollowUp(
+  applicationId: string,
+  followUpId: string,
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const parsed = parseUpdateFollowUpForm(formData);
+  if (!parsed.success) {
+    return formStateFromZodError(parsed.error, formData);
+  }
+
+  try {
+    await serverApiFetch(`${followUpsPath(applicationId)}/${encodeURIComponent(followUpId)}`, FollowUpSchema, {
+      method: "PATCH",
+      body: JSON.stringify(parsed.data),
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return { error: GENERIC_ERROR, values: formValues(formData) };
+  }
+
+  revalidateFollowUps(applicationId);
+  return { message: "Saved" };
+}
+
+export async function completeFollowUp(applicationId: string, followUpId: string): Promise<void> {
+  try {
+    await serverApiFetch(`${followUpsPath(applicationId)}/${encodeURIComponent(followUpId)}/done`, FollowUpSchema, {
+      method: "POST",
+    });
+  } catch (error) {
+    // Removed or already done (e.g. in another tab) — nothing left to do.
+    if (!(error instanceof ApiError && (error.status === 404 || error.status === 400))) throw error;
+  }
+
+  revalidateFollowUps(applicationId);
+}
+
+export async function deleteFollowUp(applicationId: string, followUpId: string): Promise<void> {
+  try {
+    await serverApiFetch(`${followUpsPath(applicationId)}/${encodeURIComponent(followUpId)}`, z.undefined(), {
+      method: "DELETE",
+    });
+  } catch (error) {
+    // Already removed (e.g. in another tab) — same end result.
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
+
+  revalidateFollowUps(applicationId);
 }

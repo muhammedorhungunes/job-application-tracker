@@ -4,15 +4,19 @@ import {
   ActivitySchema,
   ApplicationSchema,
   ContactSchema,
+  DueFollowUpSchema,
+  FollowUpSchema,
   InterviewSchema,
   type Activity,
   type Application,
   type Contact,
+  type FollowUp,
   type Interview,
 } from "@job-tracker/types";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContactList } from "@/components/contact-list";
+import { FollowUpList } from "@/components/follow-up-list";
 import { InterviewList } from "@/components/interview-list";
 import { ApplicationForm } from "@/components/application-form";
 import { ApiError } from "@/lib/api-client";
@@ -23,12 +27,16 @@ import {
   addNote,
   cancelInterview,
   archiveApplication,
+  completeFollowUp,
   createContact,
+  createFollowUp,
   createInterview,
   deleteContact,
+  deleteFollowUp,
   deleteNote,
   updateApplication,
   updateContact,
+  updateFollowUp,
   updateInterview,
 } from "../actions";
 
@@ -56,11 +64,14 @@ async function getSubresource<T>(path: string, schema: z.ZodType<T[]>): Promise<
 export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const base = `/applications/${encodeURIComponent(id)}`;
-  const [application, activities, interviews, contacts] = await Promise.all([
+  const [application, activities, interviews, contacts, followUps, dueFollowUps] = await Promise.all([
     getApplication(id),
     getSubresource<Activity>(`${base}/activities`, ActivitySchema.array()),
     getSubresource<Interview>(`${base}/interviews`, InterviewSchema.array()),
     getSubresource<Contact>(`${base}/contacts`, ContactSchema.array()),
+    getSubresource<FollowUp>(`${base}/follow-ups`, FollowUpSchema.array()),
+    // "Due" depends on the user's time zone, which the API knows; reusing its due list keeps one rule.
+    serverApiFetch("/follow-ups/due", DueFollowUpSchema.array()),
   ]);
   // "Berlin · Hybrid · €60,000–€75,000 / year", skipping whatever isn't set.
   const details = [formatLocation(application), formatSalary(application)].filter((part): part is string => Boolean(part));
@@ -89,6 +100,15 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         updateAction={(interviewId) => updateInterview.bind(null, id, interviewId)}
         cancelAction={(interviewId) => cancelInterview.bind(null, id, interviewId)}
         calendarHref={(interviewId) => interviewCalendarHref(id, interviewId)}
+      />
+      <FollowUpList
+        followUps={followUps}
+        dueIds={new Set(dueFollowUps.map((followUp) => followUp.id))}
+        contacts={contacts}
+        createAction={createFollowUp.bind(null, id)}
+        updateAction={(followUpId) => updateFollowUp.bind(null, id, followUpId)}
+        doneAction={(followUpId) => completeFollowUp.bind(null, id, followUpId)}
+        deleteAction={(followUpId) => deleteFollowUp.bind(null, id, followUpId)}
       />
       <ContactList
         contacts={contacts}

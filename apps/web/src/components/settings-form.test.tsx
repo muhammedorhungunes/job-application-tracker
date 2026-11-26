@@ -10,6 +10,7 @@ const settings: UserSettings = {
   staleDigestEnabled: true,
   staleDays: null,
   interviewRemindersEnabled: false,
+  followUpRemindersEnabled: true,
   defaults: { timeZone: "Europe/Istanbul", staleDays: 7 },
 };
 
@@ -32,6 +33,7 @@ describe("SettingsForm", () => {
     expect(days.placeholder).toBe("Default (7)");
     expect(screen.getByRole<HTMLInputElement>("checkbox", { name: /daily digest/ }).checked).toBe(true);
     expect(screen.getByRole<HTMLInputElement>("checkbox", { name: /before each interview/ }).checked).toBe(false);
+    expect(screen.getByRole<HTMLInputElement>("checkbox", { name: /follow-up is due/ }).checked).toBe(true);
   });
 
   it("selects the user's own zone and threshold", () => {

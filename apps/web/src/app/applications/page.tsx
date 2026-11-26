@@ -1,6 +1,12 @@
 import Link from "next/link";
-import { ApplicationSchema, TechStackOptionsSchema, UpcomingInterviewSchema } from "@job-tracker/types";
+import {
+  ApplicationSchema,
+  DueFollowUpSchema,
+  TechStackOptionsSchema,
+  UpcomingInterviewSchema,
+} from "@job-tracker/types";
 import { ApplicationFilters } from "@/components/application-filters";
+import { DueFollowUps } from "@/components/due-follow-ups";
 import { KanbanBoard } from "@/components/kanban-board";
 import { UpcomingInterviews } from "@/components/upcoming-interviews";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,9 +24,10 @@ export default async function ApplicationsPage({
   const filters = parseFilters(await searchParams);
   const filtered = hasActiveFilters(filters);
 
-  const [applications, upcomingInterviews, techOptions] = await Promise.all([
+  const [applications, upcomingInterviews, dueFollowUps, techOptions] = await Promise.all([
     serverApiFetch(`/applications${toQueryString(filters)}`, ApplicationSchema.array()),
     serverApiFetch(`/interviews/upcoming?days=${UPCOMING_DAYS}`, UpcomingInterviewSchema.array()),
+    serverApiFetch("/follow-ups/due", DueFollowUpSchema.array()),
     serverApiFetch("/applications/tech-stack", TechStackOptionsSchema),
   ]);
 
@@ -44,6 +51,7 @@ export default async function ApplicationsPage({
         </div>
       </div>
 
+      <DueFollowUps followUps={dueFollowUps} />
       <UpcomingInterviews interviews={upcomingInterviews} days={UPCOMING_DAYS} />
 
       {applications.length === 0 && !filtered ? (

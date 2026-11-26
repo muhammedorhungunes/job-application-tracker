@@ -18,6 +18,7 @@ export function parseSettingsForm(formData: FormData) {
     // Number("abc") is NaN, which the schema rejects with a field error.
     staleDays: staleDays === "" ? null : Number(staleDays),
     interviewRemindersEnabled: formData.get("interviewRemindersEnabled") === "on",
+    followUpRemindersEnabled: formData.get("followUpRemindersEnabled") === "on",
   });
 }
 
