@@ -34,6 +34,7 @@ enum ActivityType {
   INTERVIEW_CANCELLED
   ARCHIVED
   RESTORED
+  FOLLOW_UP_DONE
   // Mirrored by hand in packages/types/src/activity.ts.
 }
 
@@ -75,6 +76,7 @@ model User {
   staleDigestEnabled        Boolean  @default(true)
   staleDays                 Int?
   interviewRemindersEnabled Boolean  @default(true)
+  followUpRemindersEnabled  Boolean  @default(true)
 
   applications     Application[]
   refreshTokens    RefreshToken[]
@@ -142,6 +144,7 @@ model Application {
   reminders  ApplicationReminder[]
   interviews Interview[]
   contacts   Contact[]
+  followUps  FollowUp[]
 
   @@index([userId])
   @@index([companyId])
@@ -210,8 +213,39 @@ model Contact {
   updatedAt     DateTime    @updatedAt
   deletedAt     DateTime?
 
+  followUps FollowUp[]
+
   @@index([applicationId])
   @@index([deletedAt])
+}
+
+// Something the user plans to do on a given day ("e-mail the recruiter
+// again"). Creating or editing one isn't a follow-up yet, so like Contact it
+// writes no timeline entry and doesn't bump Application.updatedAt; marking it
+// done does both (see FollowUpsRepository.markDone).
+model FollowUp {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  // Contacts are soft-deleted, so SetNull only matters for a hard delete;
+  // a soft-deleted contact is hidden when reading instead.
+  contactId     String?
+  contact       Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  /// Calendar day in the user's time zone, stored as a date without time.
+  dueDate       DateTime    @db.Date
+  note          String
+  doneAt        DateTime?
+  // Set when the follow-up went out in a reminder e-mail; changing dueDate
+  // clears it so the new day is reminded again.
+  remindedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  @@index([applicationId])
+  @@index([contactId])
+  @@index([deletedAt])
+  @@index([dueDate])
 }
 
 // One row per application included in a sent reminder digest. Kept apart

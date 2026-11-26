@@ -58,6 +58,10 @@ export const softDeleteExtension = Prisma.defineExtension((client) =>
         findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
         findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
       },
+      followUp: {
+        findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+        findFirst: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
+      },
       // Read filter only: nothing deletes parse rows yet, so no delete override.
       jobPostingParse: {
         findMany: ({ args, query }) => query({ ...args, where: notDeleted(args.where) }),
@@ -102,6 +106,11 @@ export const softDeleteExtension = Prisma.defineExtension((client) =>
       contact: {
         delete(args: Prisma.ContactDeleteArgs) {
           return client.contact.update({ where: args.where, data: { deletedAt: new Date() } });
+        },
+      },
+      followUp: {
+        delete(args: Prisma.FollowUpDeleteArgs) {
+          return client.followUp.update({ where: args.where, data: { deletedAt: new Date() } });
         },
       },
     },
