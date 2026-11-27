@@ -3,14 +3,17 @@ import { Logger } from "@nestjs/common";
 import { UnrecoverableError, type Job } from "bullmq";
 import type { z } from "zod";
 import { EmailSendError } from "./email/email-sender";
+import { FollowUpRemindersService } from "./follow-up-reminders.service";
 import { InterviewRemindersService } from "./interview-reminders.service";
 import {
   INTERVIEW_SCAN_JOB,
   REMINDERS_QUEUE,
   SCAN_JOB,
   SEND_DIGEST_JOB,
+  SEND_FOLLOW_UP_DIGEST_JOB,
   SEND_INTERVIEW_REMINDER_JOB,
   SendDigestJobDataSchema,
+  SendFollowUpDigestJobDataSchema,
   SendInterviewReminderJobDataSchema,
 } from "./notifications.constants";
 import { RemindersService } from "./reminders.service";
@@ -22,17 +25,27 @@ export class RemindersProcessor extends WorkerHost {
   constructor(
     private readonly remindersService: RemindersService,
     private readonly interviewRemindersService: InterviewRemindersService,
+    private readonly followUpRemindersService: FollowUpRemindersService,
   ) {
     super();
   }
 
   async process(job: Job<unknown>): Promise<void> {
     switch (job.name) {
-      case SCAN_JOB:
-        await this.remindersService.enqueueDigests(new Date());
+      case SCAN_JOB: {
+        // Both e-mails go out at REMINDER_HOUR local, so they share the hourly scan.
+        const now = new Date();
+        await this.remindersService.enqueueDigests(now);
+        await this.followUpRemindersService.enqueueDue(now);
         return;
+      }
       case SEND_DIGEST_JOB:
         await this.runSend(job, SendDigestJobDataSchema, (data) => this.remindersService.sendDigest(data, new Date()));
+        return;
+      case SEND_FOLLOW_UP_DIGEST_JOB:
+        await this.runSend(job, SendFollowUpDigestJobDataSchema, (data) =>
+          this.followUpRemindersService.send(data, new Date()),
+        );
         return;
       case INTERVIEW_SCAN_JOB:
         await this.interviewRemindersService.enqueueDue(new Date());

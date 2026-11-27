@@ -9,8 +9,13 @@ import { AppModule } from "../src/app.module";
 import { ANTHROPIC_CLIENT } from "../src/ai/ai.client";
 import { AppConfigService } from "../src/config/app-config.service";
 import { EMAIL_SENDER, type EmailMessage } from "../src/notifications/email/email-sender";
+import { FollowUpRemindersService } from "../src/notifications/follow-up-reminders.service";
 import { InterviewRemindersService } from "../src/notifications/interview-reminders.service";
-import { REMINDERS_QUEUE, SEND_DIGEST_JOB } from "../src/notifications/notifications.constants";
+import {
+  REMINDERS_QUEUE,
+  SEND_DIGEST_JOB,
+  SEND_FOLLOW_UP_DIGEST_JOB,
+} from "../src/notifications/notifications.constants";
 import { RemindersService } from "../src/notifications/reminders.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { pickCookie } from "./helpers";
@@ -28,6 +33,7 @@ describe("Reminder digests (e2e)", () => {
   let prisma: PrismaService;
   let reminders: RemindersService;
   let interviewReminders: InterviewRemindersService;
+  let followUpReminders: FollowUpRemindersService;
   let queue: Queue;
   let cookie: string;
   let email: string;
@@ -67,6 +73,7 @@ describe("Reminder digests (e2e)", () => {
     prisma = app.get(PrismaService);
     reminders = app.get(RemindersService);
     interviewReminders = app.get(InterviewRemindersService);
+    followUpReminders = app.get(FollowUpRemindersService);
     queue = app.get<Queue>(getQueueToken(REMINDERS_QUEUE));
 
     email = `${randomUUID()}@test.local`;
@@ -346,6 +353,116 @@ describe("Reminder digests (e2e)", () => {
       await patchSettings({ interviewRemindersEnabled: true, timeZone: "America/New_York" });
       await expect(interviewReminders.send(job, new Date())).resolves.toEqual({ sent: true });
       expect(sentTo().at(-1)!.subject).toMatch(/\(America\/New_York\)$/);
+    });
+  });
+
+  describe("follow-up reminders", () => {
+    // A separate user in UTC, so "today" is the UTC day and the other tests' e-mails don't mix in.
+    let fuCookie: string;
+    let fuEmail: string;
+    let fuUserId: string;
+    const sentTo = (): EmailMessage[] => send.mock.calls.map(([m]) => m).filter((m) => m.to === fuEmail);
+    const utcDay = (offsetDays: number): string => new Date(Date.now() + offsetDays * DAY_MS).toISOString().slice(0, 10);
+
+    async function createApplicationFor(position: string): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post("/applications")
+        .set("Cookie", [fuCookie])
+        .send({ companyName: `Co ${position}`, position, status: "APPLIED" })
+        .expect(201);
+      return res.body.id as string;
+    }
+
+    async function addFollowUp(applicationId: string, dueDate: string, note: string): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post(`/applications/${applicationId}/follow-ups`)
+        .set("Cookie", [fuCookie])
+        .send({ dueDate, note })
+        .expect(201);
+      return res.body.id as string;
+    }
+
+    beforeAll(async () => {
+      fuEmail = `${randomUUID()}@test.local`;
+      const res = await request(app.getHttpServer())
+        .post("/auth/register")
+        .send({ email: fuEmail, password: "password123", name: "Follow-up User" })
+        .expect(201);
+      fuCookie = pickCookie(res.headers["set-cookie"], "access_token");
+      fuUserId = (await prisma.client.user.findFirstOrThrow({ where: { email: fuEmail } })).id;
+      await request(app.getHttpServer()).patch("/settings").set("Cookie", [fuCookie]).send({ timeZone: "UTC" }).expect(200);
+    });
+
+    it("e-mails due follow-ups once, through the real queue, and again after a new date", async () => {
+      const open = await createApplicationFor("Follow-up open");
+      const closed = await createApplicationFor("Follow-up closed");
+      const today = await addFollowUp(open, utcDay(0), "Due today note");
+      await addFollowUp(open, utcDay(-3), "Overdue note");
+      await addFollowUp(open, utcDay(3), "Future note");
+      const done = await addFollowUp(open, utcDay(0), "Done note");
+      await request(app.getHttpServer())
+        .post(`/applications/${open}/follow-ups/${done}/done`)
+        .set("Cookie", [fuCookie])
+        .expect(200);
+      await addFollowUp(closed, utcDay(0), "Closed note");
+      await request(app.getHttpServer())
+        .patch(`/applications/${closed}`)
+        .set("Cookie", [fuCookie])
+        .send({ status: "WITHDRAWN" })
+        .expect(200);
+
+      await queue.add(SEND_FOLLOW_UP_DIGEST_JOB, { userId: fuUserId, digestDate: utcDay(0) });
+      for (let i = 0; i < 50 && sentTo().length === 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      const sent = sentTo();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.subject).toBe("2 follow-ups are due");
+      expect(sent[0]!.text).toContain("Due today note");
+      expect(sent[0]!.text).toContain("Overdue note");
+      for (const left of ["Future note", "Done note", "Closed note"]) {
+        expect(sent[0]!.text).not.toContain(left);
+      }
+
+      // Already reminded: nothing more to send.
+      await expect(followUpReminders.send({ userId: fuUserId, digestDate: utcDay(0) }, new Date())).resolves.toEqual({
+        sent: false,
+      });
+
+      // Moving it to another day that's due makes it remindable again; editing the text doesn't.
+      await request(app.getHttpServer())
+        .patch(`/applications/${open}/follow-ups/${today}`)
+        .set("Cookie", [fuCookie])
+        .send({ note: "Due today note, edited" })
+        .expect(200);
+      await expect(followUpReminders.send({ userId: fuUserId, digestDate: utcDay(0) }, new Date())).resolves.toEqual({
+        sent: false,
+      });
+      await request(app.getHttpServer())
+        .patch(`/applications/${open}/follow-ups/${today}`)
+        .set("Cookie", [fuCookie])
+        .send({ dueDate: utcDay(-1) })
+        .expect(200);
+      await expect(followUpReminders.send({ userId: fuUserId, digestDate: utcDay(0) }, new Date())).resolves.toEqual({
+        sent: true,
+      });
+      expect(sentTo().at(-1)!.subject).toBe("Follow-up due: Co Follow-up open");
+    });
+
+    it("sends nothing when the user turned follow-up reminders off", async () => {
+      const applicationId = await createApplicationFor("Follow-up muted");
+      await addFollowUp(applicationId, utcDay(0), "Muted note");
+      await request(app.getHttpServer())
+        .patch("/settings")
+        .set("Cookie", [fuCookie])
+        .send({ followUpRemindersEnabled: false })
+        .expect(200);
+
+      await expect(followUpReminders.send({ userId: fuUserId, digestDate: utcDay(0) }, new Date())).resolves.toEqual({
+        sent: false,
+      });
+      expect(sentTo().some((m) => m.text.includes("Muted note"))).toBe(false);
     });
   });
 });

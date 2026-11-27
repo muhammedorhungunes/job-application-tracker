@@ -182,7 +182,7 @@ export type UpdateApplicationInput = z.infer<typeof UpdateApplicationInputSchema
 const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 
 /** `YYYY-MM-DD` that is a real calendar day (rejects 2026-02-31). */
-const DateOnlySchema = z
+export const DateOnlySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => new Date(`${value}T00:00:00.000Z`).toISOString().startsWith(value), { message: "Invalid date" });

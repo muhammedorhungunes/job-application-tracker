@@ -10,6 +10,7 @@ export const ActivityTypeValues = [
   "INTERVIEW_CANCELLED",
   "ARCHIVED",
   "RESTORED",
+  "FOLLOW_UP_DONE",
 ] as const;
 export const ActivityTypeSchema = z.enum(ActivityTypeValues);
 export type ActivityType = z.infer<typeof ActivityTypeSchema>;

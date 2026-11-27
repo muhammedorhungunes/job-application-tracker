@@ -1,6 +1,8 @@
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { emailSenderProvider } from "./email/email-sender.provider";
+import { FollowUpRemindersRepository } from "./follow-up-reminders.repository";
+import { FollowUpRemindersService } from "./follow-up-reminders.service";
 import { InterviewRemindersRepository } from "./interview-reminders.repository";
 import { InterviewRemindersService } from "./interview-reminders.service";
 import { REMINDERS_QUEUE } from "./notifications.constants";
@@ -17,6 +19,8 @@ import { RemindersService } from "./reminders.service";
     RemindersService,
     InterviewRemindersRepository,
     InterviewRemindersService,
+    FollowUpRemindersRepository,
+    FollowUpRemindersService,
     RemindersProcessor,
     RemindersScheduler,
   ],

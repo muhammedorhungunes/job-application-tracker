@@ -32,6 +32,7 @@ export const UserSettingsSchema = z.object({
   staleDigestEnabled: z.boolean(),
   staleDays: z.number().int().nullable(),
   interviewRemindersEnabled: z.boolean(),
+  followUpRemindersEnabled: z.boolean(),
   defaults: z.object({
     timeZone: z.string(),
     staleDays: z.number().int().positive(),
@@ -48,6 +49,7 @@ export const UpdateUserSettingsInputSchema = z
     staleDigestEnabled: z.boolean().optional(),
     staleDays: StaleDaysSchema.nullable().optional(),
     interviewRemindersEnabled: z.boolean().optional(),
+    followUpRemindersEnabled: z.boolean().optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, { message: "Provide at least one setting to update" });

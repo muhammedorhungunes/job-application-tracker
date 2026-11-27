@@ -125,6 +125,16 @@ in their own `Contact` table. Saving one writes no history entry and leaves
 `Application.updatedAt` alone: writing down who the recruiter is isn't
 following up, so it shouldn't silence the stale reminder.
 
+**Planned follow-ups count only once they're done.** A `FollowUp` is a note
+for a calendar day ("e-mail Jane again on Dec 3"), stored as a date without
+time and read in the user's time zone. Planning or editing one leaves
+`Application.updatedAt` alone; marking it done writes a `FOLLOW_UP_DONE`
+history entry and bumps it, like a note. Due follow-ups go out in one e-mail
+per user at `REMINDER_HOUR` local, from the same hourly scan as the stale
+digest. `FollowUp.remindedAt` makes each one e-mailed once; moving it to
+another day clears it. Because overdue, never-e-mailed follow-ups are always
+included, a missed scan hour only delays them to the next day.
+
 **Interview times belong to the browser.** A `datetime-local` input has no
 time zone and server actions run in UTC, so the interview form converts the
 value to ISO in the browser before submitting, and times are formatted on the

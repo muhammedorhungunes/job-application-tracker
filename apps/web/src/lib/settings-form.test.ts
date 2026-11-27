@@ -19,6 +19,7 @@ describe("parseSettingsForm", () => {
       staleDigestEnabled: true,
       staleDays: 14,
       interviewRemindersEnabled: false,
+      followUpRemindersEnabled: false,
     });
   });
 
